@@ -102,6 +102,24 @@
         font-size: 0.9rem;
       }
 
+      .feedback {
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--line);
+      }
+
+      .feedback p {
+        margin: 0;
+        line-height: 1.6;
+      }
+
+      .feedback-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 0.9rem;
+      }
+
       .document {
         margin-top: 1.25rem;
         padding: 0;
@@ -226,11 +244,25 @@
         <div class="hero-links">
           <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc">Repository</a>
           <a href="./agrp-rfc.md">Markdown Source</a>
+          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/1">Discussion</a>
         </div>
         <p id="status" class="status">Loading RFC text...</p>
       </section>
 
       <article id="content" class="document" aria-live="polite"></article>
+      <section class="feedback" aria-labelledby="feedback-heading">
+        <h2 id="feedback-heading">Feedback</h2>
+        <p>
+          Use GitHub to ask questions, propose changes, report issues, or edit the RFC source.
+        </p>
+        <div class="feedback-links">
+          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/1">Main discussion thread</a>
+          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/new?category=q-a">Ask a question</a>
+          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/new?category=ideas">Propose a change</a>
+          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/issues/new?title=RFC%20feedback%3A%20&body=Section%20or%20heading%3A%0A%0AFeedback%3A%0A">Report an issue</a>
+          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/edit/main/agrp-rfc.md">Edit this RFC</a>
+        </div>
+      </section>
       <noscript>
         <p class="error">
           This page renders <code>agrp-rfc.md</code> in the browser and requires JavaScript.
