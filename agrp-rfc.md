@@ -50,36 +50,36 @@ Without AGRP, the current protocol stack solves individual links such as editor-
     |
  [Chat / CLI / IDE]
     |
- [Realm Exchanges] ---------------- trusted links ---------------- [Other Realms]
+ [Exchanges with Realm Access] ---- trusted links ---------------- [Other Realms]
     | \
     |  +--> [Realm State]
     |        +--> [Agent Sidecars + Agents]
     |        +--> [Files / Context / Resources]
     |        +--> [Audit Log]
     |
- [Control Plane] -------------------------------> [Realm Exchanges]
+ [Control Plane] -------------------------------> [Exchange Access Mapping]
  [Control Plane] -------------------------------> [Create / Pause / Resume / Route]
 ```
 
 ## High-Level Exchange View
 
-At runtime, AGRP centers work around a Realm and its Exchanges. Humans and bridges connect to a specific Exchange for that Realm, the Control Plane and ARLM manage lifecycle around the shared realm state, and every agent is represented through a 1:1 attached sidecar. The sidecar speaks AGSP, receives delegated requests plus signed mandates, and invokes or polls the passive agent locally.
+At runtime, AGRP centers work around Exchanges. A Realm is an optional stateful attachment that the Control Plane may bind to one or more Exchanges. Humans and bridges connect to a specific authorized Exchange, the Control Plane and ARLM manage lifecycle around any shared realm state when present, and every agent is represented through a 1:1 attached sidecar. The sidecar speaks AGSP, receives delegated requests plus signed mandates, and invokes or polls the passive agent locally.
 
 ```
- [Human User] ---------------------------------------------\
- [Human Channel] -- bridge session ------------------------+--> [Realm Exchange A]
- [Peer Exchange / Federated Link] -- trusted AGSP link --------/
-                                                           |
- [Control Plane] -- routing + policy + lifecycle --------> [Realm Exchange B]
+ [Human User] ------------------------------------------------\
+ [Human Channel] -- bridge session ---------------------------+--> [Authorized Exchange A]
+ [Peer Exchange / Federated Link] -- trusted AGSP link -----------/
+                                                              |
+ [Control Plane] -- routing + policy + realm access --------> [Authorized Exchange B]
  [Control Plane] -- spawn / suspend / resume -----------> [Agent Runtime Lifecycle Manager]
-                                                           |
- [Realm Exchange A] -- authorized access ---------------> [Realm State]
- [Realm Exchange B] -- authorized access ---------------> [Realm State]
- [Realm State] -----------------------------------------> [Audit Log]
+                                                              |
+ [Authorized Exchange A] -- authorized access -----------> [Realm State]
+ [Authorized Exchange B] -- authorized access -----------> [Realm State]
+ [Realm State] ------------------------------------------> [Audit Log]
 
- [Realm Exchange A] -- delegated text + signed mandate -> [Sidecar: agent1] -- invoke / poll -> [Passive Agent 1]
- [Realm Exchange B] -- delegated text + signed mandate -> [Sidecar: agent2] -- invoke / poll -> [Passive Agent 2]
- [Realm Exchange A] -- resource_call -------------------> [Environment / Resource Service]
+ [Authorized Exchange A] -- delegated text + signed mandate -> [Sidecar: agent1] -- invoke / poll -> [Passive Agent 1]
+ [Authorized Exchange B] -- delegated text + signed mandate -> [Sidecar: agent2] -- invoke / poll -> [Passive Agent 2]
+ [Authorized Exchange A] -- resource_call -------------------> [Environment / Resource Service]
 
  [Agent Runtime Lifecycle Manager] -- spawns + resumes -----> [Sidecar: agent1]
  [Agent Runtime Lifecycle Manager] -- spawns + resumes -----> [Sidecar: agent2]
@@ -90,9 +90,9 @@ At runtime, AGRP centers work around a Realm and its Exchanges. Humans and bridg
 
 ## Abstract
 
-This document specifies the Agent Relay Protocol (AGRP), a switching fabric and realm infrastructure for autonomous agent meshes. AGRP defines how agents, humans, and AGSP bridges connect to Realms; how Exchanges relay messages between participants; how a Control Plane manages topology, realm lifecycle, and routing state; and how inter-Exchange communication enables multi-hop meshes.
+This document specifies the Agent Relay Protocol (AGRP), a switching fabric and realm infrastructure for autonomous agent meshes. AGRP defines how agents, humans, and AGSP bridges connect through Exchanges; how optional Realms add shared state and lifecycle; how a Control Plane manages topology, realm lifecycle, and routing state; and how inter-Exchange communication enables multi-hop meshes.
 
-AGRP operates at the **communication and infrastructure layer** — below the semantics of agent collaboration (A2A) and above the mechanics of tool access (MCP) and editor integration (ACP). It provides the managed topology, realm lifecycle, and message routing that these protocols do not address.
+AGRP operates at the **communication and infrastructure layer** — below the semantics of agent collaboration (A2A) and above the mechanics of tool access (MCP) and editor integration (ACP). It provides the managed topology, optional realm lifecycle, and message routing that these protocols do not address.
 
 AGRP is to agent meshes what a telephone switching network is to voice communication: a universal, topology-agnostic fabric that routes messages between participants without knowledge of their content.
 
@@ -100,7 +100,7 @@ AGRP is to agent meshes what a telephone switching network is to voice communica
 
 ## 1. Problem Statement
 
-AI agents increasingly operate in multi-agent, multi-human systems. Several protocols have emerged to address different layers of the agentic stack, most now maturing under open governance. However, none define a **switching fabric** — a managed infrastructure where agents and humans are organized into realms, connected by routable topology, with lifecycle management, audit, and multi-client access.
+AI agents increasingly operate in multi-agent, multi-human systems. Several protocols have emerged to address different layers of the agentic stack, most now maturing under open governance. However, none define a **switching fabric** — a managed infrastructure where agents and humans are organized through Exchanges and optional Realms, connected by routable topology, with lifecycle management, audit, and multi-client access.
 
 ### 1.1 Protocol Landscape
 
@@ -115,11 +115,11 @@ AI agents increasingly operate in multi-agent, multi-human systems. Several prot
 
 None of these protocols address:
 
-- **Managed topology** — how agents are grouped into realms with shared environments, routed across Exchanges, connected via a control plane
-- **Multi-client access** — how the same realm is accessed simultaneously from a terminal, a messaging app, and an IDE
-- **Realm lifecycle** — how a collaborative unit (code + agent + humans) is created, suspended, resumed, and audited
+- **Managed topology** — how agents are grouped through Exchanges and optional Realms with shared environments, routed across Exchanges, connected via a control plane
+- **Multi-client access** — how the same Exchange or Realm is accessed simultaneously from a terminal, a messaging app, and an IDE
+- **Realm lifecycle** — how a stateful collaborative unit (code + agent + humans) is created, suspended, resumed, and audited when a Realm is present
 - **Multi-hop relay** — how a message traverses multiple Exchanges without hardcoded addressing
-- **Broadcast and fan-out** — how an agent's response reaches all human participants in a realm
+- **Broadcast and fan-out** — how an agent's response reaches all human participants sharing an Exchange or Realm context
 
 MCP connects agents to tools. ACP connects editors to agents. A2A enables agent-to-agent collaboration. **AGRP provides the infrastructure mesh beneath all of them.**
 
@@ -178,17 +178,17 @@ An Exchange is a process or pod that acts as a **switching node** in the mesh. I
 - Accepts AGSP connections from agent sidecars, humans, AGSP bridges, and peer Exchanges
 - Maintains a local routing table pushed by the Control Plane
 - Forwards messages to local participants or to peer Exchanges
-- Broadcasts messages within a realm according to fan-out rules
-- Persists messages to an append-only audit log
+- Broadcasts messages within its local participant set, or within a realm according to realm fan-out rules when the Exchange is bound to a Realm
+- May persist messages to an append-only audit log when serving a Realm with persistence enabled
 - Is itself an AGSP participant — it can join other Exchanges as a peer
 
 This last property is the key architectural insight: **Exchange-to-Exchange communication uses the same AGSP protocol as any other participant connection**. There is no separate inter-Exchange protocol. An Exchange joins another Exchange exactly as any external participant would, enabling recursive composition.
 
 ### 2.3 Realm
 
-A Realm is the primary user-facing abstraction in AGRP. It is a **managed, stateful collaboration unit** with one or more Exchanges as ingress points into shared realm state. A Realm bundles:
+A Realm is AGRP's **managed, stateful collaboration unit**. It is optional: an Exchange may run without any Realm, in which case it behaves as a stateless relay or chat surface without protocol-required history persistence. A Realm bundles:
 
-- **One or more Exchanges** — switching nodes that expose the Realm to participants and peer Exchanges
+- **Shared realm state** — mutable state and policy owned by the Realm
 - **An Environment Resource Service** — an abstract provider of context, environment resources, and realm information
 - **Agents** — one or more, each with a harness and model configuration
 - **Members** — humans with roles (owner, admin, member) and permissions
@@ -197,7 +197,7 @@ A Realm is the primary user-facing abstraction in AGRP. It is a **managed, state
 
 A Realm has a hierarchical identifier: `{namespace}/{name}` (e.g., `myns/myproject`). Realms are managed by the Control Plane and have a defined lifecycle: `creating → running → suspended → running → terminated`.
 
-The relationship between Realm and Exchange is strict but not 1:1: a Realm owns identity, mutable state, and lifecycle, while one or more Exchanges act as doors into that state. An Exchange handles switching and policy enforcement for the traffic that enters through it, but it does not define the Realm's identity by itself. The Control Plane may place multiple Exchanges in front of the same Realm for availability, locality, or load distribution. Multiple Realms may run on the same physical infrastructure but their state and policy boundaries remain logically isolated.
+The relationship between Realm and Exchange is strict but indirect: a Realm owns identity, mutable state, and lifecycle, while Exchanges are separate switching nodes that may be granted access to that Realm by the Control Plane. An Exchange handles switching and policy enforcement for the traffic that enters through it, but it does not define the Realm and is not declared by the Realm object itself. The Control Plane may grant multiple Exchanges access to the same Realm for availability, locality, or load distribution. Multiple Realms may run on the same physical infrastructure but their state and policy boundaries remain logically isolated.
 
 From an implementation point of view, a Realm may be realized as a stateful runtime unit, for example a Kubernetes StatefulSet pod with attached persistent storage such as a PVC. This RFC does not require Kubernetes or PVCs, but it does require the same semantics: the Realm owns mutable state together with a controlled interface for reading and mutating that state.
 
@@ -286,7 +286,7 @@ A typical realm with CLI, Telegram, and a single agent:
                 [Agent: claude]
 ```
 
-All external Exchange edges in this example are AGSP sessions. The agent process is not. The Exchange talks to the agent through its attached sidecar, and the sidecar invokes or polls the local agent. When the agent produces a reply, the sidecar emits the corresponding AGSP message and the Exchange fans it out to CLI and both bridges. When a human types in the Telegram thread, the bridge forwards it as an AGSP message attributed to that human; if the message has no explicit agent target, the Exchange stores it as a `exchange_message`.
+All external Exchange edges in this example are AGSP sessions. The agent process is not. The Exchange talks to the agent through its attached sidecar, and the sidecar invokes or polls the local agent. When the agent produces a reply, the sidecar emits the corresponding AGSP message and the Exchange fans it out to CLI and both bridges. When a human types in the Telegram thread, the bridge forwards it as an AGSP message attributed to that human; if the message has no explicit agent target, the Exchange stores it as an `exchange_message` in the local transcript/history when enabled.
 
 ### 3.3 Multi-Exchange Topology
 
@@ -345,7 +345,7 @@ Participant                          Exchange
     |      role,                       |
     |      participant_info,           |
     |      capabilities,               |
-    |      realm }                 |
+    |      realm? }                |
     |                                  |
     |←── initialize_response ─────────|
     |    { exchange_info,                  |
@@ -369,6 +369,8 @@ The `role` field indicates participant type:
 | `arlm` | Agent Runtime Lifecycle Manager |
 
 Exchanges treat all roles uniformly for message forwarding. The role is metadata for fan-out rules, observability, and authorization policy — not routing. The attached sidecar is modeled as an internal child session, but the Exchange projects it as the parent logical `agent` participant. Because every agent is sidecar-backed in AGRP v1, transport-mode negotiation is not required in AGSP session setup.
+
+The `realm` field in `agsp/initialize` is optional. It is present when the session is bound to a managed Realm and omitted for standalone stateless Exchanges.
 
 ### 4.3 Message Envelope
 
@@ -407,14 +409,14 @@ Fields:
 | `ttl` | yes | Time-to-live, decremented at each Exchange hop. Dropped at 0. |
 | `payload` | yes | Opaque to AGRP. Application-level content. |
 
-For same-realm traffic bound to a single session realm, `source_realm` and `destination_realm` MAY be omitted. When omitted, the Exchange resolves both values from the session realm context. For cross-realm traffic, both fields MUST be present. During inter-Exchange forwarding, `exchange_src` MUST be present and identify the forwarding Exchange that placed the envelope on the current Exchange-to-Exchange hop. AGSP field names shown in this RFC use `snake_case`. At minimum, a signed `mandate` binds the subject, realm, resource scope, and expiry, where scope is either an explicit resource set or `*` for all resources in scope. Related `resource_call`, `resource_chunk`, `resource_result`, `resource_end`, and approval messages reuse the same `correlation_id`.
+For same-realm traffic bound to a single session realm, `source_realm` and `destination_realm` MAY be omitted. When omitted, the Exchange resolves both values from the session realm context. For sessions not bound to any Realm, both fields MUST be omitted. For cross-realm traffic, both fields MUST be present. During inter-Exchange forwarding, `exchange_src` MUST be present and identify the forwarding Exchange that placed the envelope on the current Exchange-to-Exchange hop. AGSP field names shown in this RFC use `snake_case`. At minimum, a signed `mandate` binds the subject, any applicable realm identifier, resource scope, and expiry, where scope is either an explicit resource set or `*` for all resources in scope. Related `resource_call`, `resource_chunk`, `resource_result`, `resource_end`, and approval messages reuse the same `correlation_id`.
 
 ### 4.4 Message Types
 
 | Type | Direction | Description |
 |---|---|---|
 | `text` | any → any | Targeted plain text or markdown message |
-| `exchange_message` | human/bridge → exchange | Untargeted human message appended to exchange history and not delivered to agents |
+| `exchange_message` | human/bridge → exchange | Untargeted human message appended to local exchange transcript/history when enabled and not delivered to agents |
 | `resource_call` | human/agent → exchange | Direct resource request routed by the Exchange to the Environment/Resource service |
 | `resource_result` | exchange → requester | Final or single response for a direct resource request |
 | `resource_chunk` | exchange → requester | Streaming chunk for a direct resource request when realm policy enables streaming |
@@ -432,16 +434,18 @@ The `payload` field carries type-specific content. AGRP routes all types identic
 
 An Exchange implements the following fan-out rules:
 
-- **`to: "agent-name"`** — deliver to the named participant within the local realm
+- **`to: "agent-name"`** — deliver to the named participant within the current Exchange scope
 - **`to: "agrp://namespace/realm/agent"`** — deliver to the canonical remote participant identified by the canonical agent URI
 - **`to: "resource://namespace/realm/resource"`** — route a direct resource request through the Exchange to the Environment/Resource service
-- **`to: "*"`** — deliver to all participants in the realm
+- **`to: "*"`** — deliver to all participants in the current Exchange scope
 - **`to: "role:human"`** — deliver to all participants with role `human` or `bridge` (bridges represent human channels)
 - **`to: "role:agent"`** — deliver to all participants with role `agent`
 
-Default behavior: when an agent sends a `text` message without an explicit `to`, the Exchange defaults to `role:human` — the message fans out to all human participants and bridges. This is how a single agent response appears in both CLI and Telegram simultaneously.
+If the session is realm-bound, the current Exchange scope is the current Realm. Otherwise it is the local standalone Exchange participant set.
 
-When a human or bridge sends a message without an explicit agent target, the Exchange stores it as a `exchange_message` in exchange history and does not route it to agents. Human-to-agent delivery happens only through explicit delegation.
+Default behavior: when an agent sends a `text` message without an explicit `to`, the Exchange defaults to `role:human` — the message fans out to all human participants and bridges in the current Exchange scope. This is how a single agent response appears in both CLI and Telegram simultaneously.
+
+When a human or bridge sends a message without an explicit agent target, the Exchange stores it as a `exchange_message` in the local transcript/history when enabled and does not route it to agents. Human-to-agent delivery happens only through explicit delegation.
 
 The `role:agent` form is available for explicit system-level fan-out, but human delegation in multi-agent realms targets a specific agent URI rather than an agent broadcast.
 
@@ -511,7 +515,7 @@ For cross-realm operations in v1, approval is governed by the **source realm** p
 
 ## 5. Realm Lifecycle
 
-Realm lifecycle describes the runtime envelope around a stable stateful unit. Realm identity and persistent mutable state may outlive any particular Exchange process, agent process, or sidecar session. Lifecycle transitions are commanded by the Control Plane; participant-originated changes flow only through a running Exchange for that Realm and only when authorized by realm policy.
+Realm lifecycle describes the runtime envelope around a stable stateful unit. Realm identity and persistent mutable state may outlive any particular Exchange process, agent process, or sidecar session. Lifecycle transitions are commanded by the Control Plane; participant-originated changes flow only through a running Exchange that the Control Plane has configured for Realm access and only when authorized by realm policy.
 
 ### 5.1 State Machine
 
@@ -545,8 +549,8 @@ Realm lifecycle describes the runtime envelope around a stable stateful unit. Re
 State semantics:
 
 - **Creating** — the Control Plane allocates realm identity, provisions or attaches persistent realm state, and asks the ARLM to start the runtime components. The Realm does not yet admit normal participant traffic.
-- **Running** — at least one Exchange for the Realm is live, agents and sidecars may be connected, and authorized Exchange-mediated operations may mutate realm state according to role, mandate, and approval policy. Control Plane commands may still reconfigure or suspend the Realm.
-- **Suspended** — persistent realm state is retained, but live compute is released. No Exchange for the Realm admits traffic, channel bindings are inactive, and participant-originated mutations do not run. Only the Control Plane may resume, reconfigure, or terminate the Realm.
+- **Running** — at least one Exchange with Control-Plane-granted Realm access is live, agents and sidecars may be connected, and authorized Exchange-mediated operations may mutate realm state according to role, mandate, and approval policy. Control Plane commands may still reconfigure or suspend the Realm.
+- **Suspended** — persistent realm state is retained, but live compute is released. No Exchange retains active Realm access, channel bindings are inactive, and participant-originated mutations do not run. Only the Control Plane may resume, reconfigure, or terminate the Realm.
 - **Terminated** — the Realm is no longer routable. Runtime components are gone, and the deployment either deletes or archives persistent state according to its retention policy.
 
 ### 5.2 Create
@@ -557,18 +561,18 @@ The Control Plane:
 
 1. Allocates realm identity `myns/myproject`
 2. Instructs the ARLM to provision or attach persistent realm state, environment resources, and context handles
-3. Spawns one or more Exchanges for the Realm
+3. Spawns one or more Exchanges and grants them Realm access
 4. Instructs the ARLM to spawn the agent with the specified harness and model, together with its attached sidecar
 5. Registers the creator as `owner`
 6. Updates routing tables
 
 ### 5.3 Suspend and Resume
 
-Suspending a realm preserves the control-plane snapshot and the realm's persistent state and environment/resource handles but releases live compute resources. All Exchanges for the Realm are terminated and agent processes are stopped. In a StatefulSet-style deployment, persistent storage remains attached while live processes are released.
+Suspending a realm preserves the control-plane snapshot and the realm's persistent state and environment/resource handles but releases live compute resources. All Exchanges with access to that Realm are terminated or have their Realm access revoked, and agent processes are stopped. In a StatefulSet-style deployment, persistent storage remains attached while live processes are released.
 
-While suspended, the Realm does not accept normal participant traffic and Exchange-mediated mutation paths are inactive because no Realm Exchange is serving requests.
+While suspended, the Realm does not accept normal participant traffic and Exchange-mediated mutation paths are inactive because no Exchange is serving that Realm.
 
-Resuming restores the persistent state and environment/resource handles, spawns one or more Exchanges, reconnects the agent as a new session, and re-establishes channel bindings. The agent cold-starts; live session migration and audit-log replay are not part of the v1 recovery model.
+Resuming restores the persistent state and environment/resource handles, spawns one or more Exchanges or re-grants Realm access to existing ones, reconnects the agent as a new session, and re-establishes channel bindings. The agent cold-starts; live session migration and audit-log replay are not part of the v1 recovery model.
 
 The new session is established by the attached sidecar, not by the agent process directly.
 
@@ -580,7 +584,7 @@ The Control Plane:
 
 1. Registers the channel binding metadata
 2. Spawns or configures a Telegram Bridge process
-3. The bridge opens an AGSP session to one of the Realm's Exchanges selected by deployment policy
+3. The bridge opens an AGSP session to one of the Exchanges that the Control Plane configured with access to that Realm
 4. Messages in the Telegram thread flow bidirectionally through the bridge
 
 A realm can have multiple channels simultaneously. Each channel binding maps a specific external resource (thread, channel, conversation) to the realm. The binding is 1:1 — one external thread maps to exactly one realm.
@@ -591,7 +595,7 @@ A realm can have multiple channels simultaneously. Each channel binding maps a s
 
 The Control Plane maintains the following state (Raft-replicated). This model captures the Control Plane's authoritative metadata view, not the internal byte layout of realm-local mutable state. Deployment-specific realm state may live in persistent storage attached to the realm runtime, but AGRP constrains how it changes: via Control Plane commands or via Exchange-mediated authorized operations only.
 
-The first example below shows a **single Realm exposed through multiple Exchanges**. The Exchanges are distinct ingress points into the same realm state and policy boundary, not separate Realms.
+The first example below shows a **single Realm served through multiple Exchanges**. The Realm does not list the Exchanges itself; instead, the Control Plane maintains a separate Realm-access mapping that authorizes those Exchanges to serve the same realm state and policy boundary.
 
 ```yaml
 cluster:
@@ -601,7 +605,6 @@ cluster:
 realms:
   myns/myproject:
     status: running
-    exchanges: [exchange-7a3f, exchange-7a40]
     environment:
       service: ers-01
       status: ready
@@ -646,6 +649,10 @@ realms:
       stream_terminator: resource_end
     delegation_policy:
       default: any_member
+
+realm_access:
+  myns/myproject:
+    allowed_exchanges: [exchange-7a3f, exchange-7a40]
 
 exchanges:
   exchange-7a3f:
@@ -708,13 +715,13 @@ Agents and participants are addressed either by local logical name or by a canon
 
 | Form | Example | Usage |
 |---|---|---|
-| **Local** | `claude` | Resolved only within the local realm |
+| **Local** | `claude` | Resolved only within the current Exchange scope |
 | **Agent URI** | `agrp://myns/infra/infra-agent` | Route to a specific agent in a specific realm |
 | **Resource URI** | `resource://myns/myproject/root` | Route a direct resource request through the Exchange to the Environment/Resource service |
 | **Role-based** | `role:human` | Fan-out to all participants matching the role |
-| **Broadcast** | `*` | Fan-out to all participants in the realm |
+| **Broadcast** | `*` | Fan-out to all participants in the current Exchange scope |
 
-Agents may use local names only for same-realm delivery. Cross-realm delivery uses canonical agent URIs. Direct resource access uses `resource://` URIs. Role-based and broadcast addressing are used for fan-out within a realm.
+Agents may use local names only for same-scope delivery. When the session is realm-bound, that scope is the current Realm. Cross-realm delivery uses canonical agent URIs. Direct resource access uses `resource://` URIs. Role-based and broadcast addressing are used for fan-out within the current Exchange scope.
 
 ### 7.2 Cross-Realm Addressing
 
@@ -731,7 +738,7 @@ The Control Plane pre-provisions remote routes keyed by the canonical agent URI.
 
 ## 8. Audit Log
 
-Every Exchange writes messages to an append-only audit log persisted by the Control Plane. The log captures:
+When an Exchange serves a Realm with audit persistence enabled, it writes messages to an append-only audit log persisted by the Control Plane. Standalone stateless Exchanges may omit this layer. The log captures:
 
 | Field | Description |
 |---|---|
@@ -890,6 +897,7 @@ The following topics require further specification:
 - **Companion Environment/Resource RFC:** The separate environment/resource specification still needs the concrete `resource_call`, `resource_chunk`, and `resource_result` payload schemas, `resource_approval_policy` schema, lifecycle semantics, and required metadata.
 - **Delegation policy overrides:** Base AGRP defaults delegation to any member, but the realm-level override schema is still open.
 - **Capability-based routing extension:** Capability multicast is deferred to a future optional extension and is not part of base AGRP.
+- **Standalone Exchange scope model:** The RFC now distinguishes realm-bound sessions from standalone stateless Exchanges, but it still needs a normative name and initialization model for the local participant scope used when no Realm is attached.
 
 ---
 
