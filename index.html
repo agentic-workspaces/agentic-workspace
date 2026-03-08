@@ -299,7 +299,7 @@
 flowchart LR
     people[People] --> clients[Chat / CLI / IDE]
     clients --> exchange[Authorized Exchange]
-    exchange --> state[Realm State (optional)]
+    exchange --> state[Optional Realm State]
     state --> agents[Agent Sidecars + Agents]
     state --> resources[Files / Context / Resources]
     state --> audit[Audit Log]
