@@ -871,10 +871,10 @@ The following external protocols, interfaces, and standards are referenced in th
 
 ---
 
-## Author's Address
+## Contributors
 
-Aleksei Kudriashov  
-Email: akud.soft@gmail.com
+* Aleksei Kudriashov  - akud.soft@gmail.com
+* Nikolai Ryzhikov (Helath Samurai) - niquola@health-samurai.io
 
 ---
 
