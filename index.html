@@ -6,7 +6,7 @@
     <title>Agent Relay Protocol (AGRP) RFC Draft</title>
     <meta
       name="description"
-      content="Draft RFC for the Agent Relay Protocol (AGRP), a switching fabric and workspace infrastructure for agent meshes."
+      content="Draft RFC for the Agent Relay Protocol (AGRP), a switching fabric and realm infrastructure for agent meshes."
     >
     <script
       defer
@@ -298,17 +298,17 @@
         "why-this-rfc-exists": `
 flowchart LR
     people[People] --> clients[Chat / CLI / IDE]
-    clients --> exchange[Workspace Exchange]
+    clients --> exchange[Realm Exchange]
     exchange --> agents[Agent Sidecars + Agents]
     exchange --> resources[Files / Context / Resources]
     exchange --> audit[Audit Log]
     control[Control Plane] --> exchange
     control --> lifecycle[Create / Pause / Resume / Route]
-    exchange <-->|trusted links| other[Other Workspaces]
+    exchange <-->|trusted links| other[Other Realms]
 `,
         "high-level-exchange-view": `
 flowchart TB
-    human1[Human User] -->|direct or via bridge| exchange[Workspace Exchange]
+    human1[Human User] -->|direct or via bridge| exchange[Realm Exchange]
     human2[Human Channel] -->|bridge session| exchange
     peer[Peer Exchange / Federated Link] -->|trusted ASP link| exchange
     cp[Control Plane] -->|routing + policy + lifecycle| exchange
@@ -327,7 +327,7 @@ flowchart TB
 flowchart TB
     app[Application Layer<br/>Agent business logic and task orchestration]
     a2a[A2A<br/>Agent-to-agent collaboration]
-    arp[AGRP<br/>Switching Fabric + Workspaces]
+    arp[AGRP<br/>Switching Fabric + Realms]
     asp[ASP<br/>JSON-RPC sessions and envelopes]
     transport[Transport<br/>gRPC / WebSocket / TCP]
     mcp[MCP<br/>Tool and Data Access]
@@ -336,7 +336,7 @@ flowchart TB
     mcp -. orthogonal .-> arp
     acp -. orthogonal .-> arp
 `,
-        "32-workspace-topology-single-workspace": `
+        "32-realm-topology-single-realm": `
 flowchart TB
     cp[Control Plane] -->|manage lifecycle| exchange[Exchange]
     cli[CLI] -->|ASP| exchange
@@ -367,7 +367,7 @@ flowchart TB
 sequenceDiagram
     participant P as Participant
     participant R as Exchange
-    P->>R: asp/initialize<br/>protocol_version, role,<br/>participant_info, capabilities, workspace
+    P->>R: asp/initialize<br/>protocol_version, role,<br/>participant_info, capabilities, realm
     R-->>P: initialize_response<br/>exchange_info, capabilities,<br/>members, routing_snapshot
     P->>R: asp/ready
     Note over P,R: Bidirectional messaging
@@ -398,7 +398,7 @@ sequenceDiagram
     participant Infra as infra-agent sidecar
     Claude->>ExchangeA: to agrp://myns/infra/infra-agent
     ExchangeA->>ExchangeA: lookup local routing table
-    ExchangeA->>ExchangeB: forward ASP envelope<br/>source_workspace=myns/myproject<br/>destination_workspace=myns/infra<br/>exchange_src=exchange-7a3f ttl=7
+    ExchangeA->>ExchangeB: forward ASP envelope<br/>source_realm=myns/myproject<br/>destination_realm=myns/infra<br/>exchange_src=exchange-7a3f ttl=7
     ExchangeB->>Infra: deliver local ASP message
 `,
         "101-intra-organization-federation": `

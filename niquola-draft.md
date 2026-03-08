@@ -7,38 +7,38 @@ Date: 2026-03-07
 
 ## 1. Problem Statement
 
-Agents increasingly work not in isolation but alongside humans — in shared code, shared documents, shared tasks. The industry has already built working products: Devin, GitHub Copilot coding agent, Cursor Cloud Agents, Factory Droids, Replit Agent. Each implements the same pattern — **shared human/agent workspace** — but does it in its own way, with proprietary APIs and closed models.
+Agents increasingly work not in isolation but alongside humans — in shared code, shared documents, shared tasks. The industry has already built working products: Devin, GitHub Copilot coding agent, Cursor Cloud Agents, Factory Droids, Replit Agent. Each implements the same pattern — **shared human/agent realm** — but does it in its own way, with proprietary APIs and closed models.
 
 Today there are protocols for individual layers:
 - **MCP** standardizes access to tools and context — and has become the de facto "tool bus" across all mature agent platforms.
 - **A2A** (Google) describes agent-to-agent interaction.
 - **ACP** defines how IDEs and clients interact with an agent.
 
-But none of them answer the question: **how to create a shared workspace** where humans and agents work together on a task in a controlled environment with shared filesystem, tools, permissions, and history?
+But none of them answer the question: **how to create a shared realm** where humans and agents work together on a task in a controlled environment with shared filesystem, tools, permissions, and history?
 
-Without such a protocol, every platform reinvents this from scratch: its own workspace model, its own way to launch agents, its own permission and approval system, its own environment isolation. Practice shows that successful systems converge on the same patterns — RBAC + runtime guardrails, async agent + human review, MCP as tool bus, checkpoints and rollbacks — but implement them incompatibly. Agents end up locked to a specific platform. No portability, no interoperability, no unified security model.
+Without such a protocol, every platform reinvents this from scratch: its own realm model, its own way to launch agents, its own permission and approval system, its own environment isolation. Practice shows that successful systems converge on the same patterns — RBAC + runtime guardrails, async agent + human review, MCP as tool bus, checkpoints and rollbacks — but implement them incompatibly. Agents end up locked to a specific platform. No portability, no interoperability, no unified security model.
 
 Agent Relay Protocol closes this gap — a standard protocol for building human/agent collaborative environments. The protocol can have different implementations, but thanks to a common standard, components — runtimes, agents, environments, tools — can work with each other and be interchangeable.
 
 ## 2. Use Cases
 
-**Code.** A developer and product manager work on the same codebase in one workspace. Agents operate within the workspace. Code is mounted in the workspace environment, the application is running, participants discuss, modify code, and test results.
+**Code.** A developer and product manager work on the same codebase in one realm. Agents operate within the realm. Code is mounted in the realm environment, the application is running, participants discuss, modify code, and test results.
 
-**Business.** A salesperson and marketer work on a lead in one workspace. Agents help analyze the account, CRM data, and next steps. The workspace environment contains documents, notes, CRM context, and tools.
+**Business.** A salesperson and marketer work on a lead in one realm. Agents help analyze the account, CRM data, and next steps. The realm environment contains documents, notes, CRM context, and tools.
 
-**Incident Response.** A workspace is created on an alert, on-call engineers and agents connect. Agents pull logs, metrics, traces, and analyze the root cause. Humans and agents debug and fix together in one environment.
+**Incident Response.** A realm is created on an alert, on-call engineers and agents connect. Agents pull logs, metrics, traces, and analyze the root cause. Humans and agents debug and fix together in one environment.
 
-**Data Analysis.** An analyst and data engineer work in one workspace. Agents help write SQL, build visualizations, validate data. The environment includes database connections, notebooks, and datasets.
+**Data Analysis.** An analyst and data engineer work in one realm. Agents help write SQL, build visualizations, validate data. The environment includes database connections, notebooks, and datasets.
 
-**Code Review.** A workspace is automatically created on a pull request. Reviewers and agents connect to it. Agents analyze the diff, check code style, look for bugs and security issues. Reviewers see analysis results, discuss changes with agents and each other, and make a decision — all in one workspace with access to code and CI.
+**Code Review.** A realm is automatically created on a pull request. Reviewers and agents connect to it. Agents analyze the diff, check code style, look for bugs and security issues. Reviewers see analysis results, discuss changes with agents and each other, and make a decision — all in one realm with access to code and CI.
 
-**Pipeline.** Workspaces are chained together through events. PR → code review workspace emits `review.completed` → deploy workspace is created automatically → after deployment emits `deploy.completed` → monitoring workspace watches metrics. Each step is a full workspace with humans and agents, without an external orchestrator.
+**Pipeline.** Realms are chained together through events. PR → code review realm emits `review.completed` → deploy realm is created automatically → after deployment emits `deploy.completed` → monitoring realm watches metrics. Each step is a full realm with humans and agents, without an external orchestrator.
 
 ## 3. High-Level Patterns
 
 Analysis of existing platforms (Devin, GitHub Copilot, Cursor, Factory, Replit) reveals stable architectural patterns that Agent Relay codifies into a standard protocol:
 
-**Shared artifact, not just chat.** Successful systems build collaboration around a concrete artifact — a PR, branch, checkpoint, context space — not just a chat. A Workspace in Agent Relay is both a chat room and a controlled environment with code, data, and tools, tied to a specific task or artifact.
+**Shared artifact, not just chat.** Successful systems build collaboration around a concrete artifact — a PR, branch, checkpoint, context space — not just a chat. A Realm in Agent Relay is both a chat room and a controlled environment with code, data, and tools, tied to a specific task or artifact.
 
 **Async agent + human review/handoff.** Mature products have moved from the "human and agent simultaneously editing" model to "agent works asynchronously, human connects for review, approval, or takeover." Agent Relay supports both modes, but approval flow and notification channels are optimized specifically for the async pattern.
 
@@ -46,7 +46,7 @@ Analysis of existing platforms (Devin, GitHub Copilot, Cursor, Factory, Replit) 
 
 **MCP as tool bus.** All mature platforms use MCP for connecting external tools. Agent Relay does not invent its own tool protocol but builds MCP Gateway as an authorization and discovery layer on top of MCP.
 
-**Checkpoints and rollbacks.** The ability to roll back a workspace to a previous state is critically important for safe work with agents. Agent Relay includes checkpoint/restore as part of the workspace lifecycle.
+**Checkpoints and rollbacks.** The ability to roll back a realm to a previous state is critically important for safe work with agents. Agent Relay includes checkpoint/restore as part of the realm lifecycle.
 
 **From ad-hoc dialogue to explicit protocol.** Every platform implements the same patterns incompatibly. Agent Relay codifies these patterns into an open standard, making components interchangeable.
 
@@ -57,20 +57,20 @@ Analysis of existing platforms (Devin, GitHub Copilot, Cursor, Factory, Replit) 
 | Resource | Description |
 |---|---|
 | **Namespace** | Isolation and tenancy. All resources belong to a namespace. Quotas, billing. |
-| **User** | A human in the system. Identity, groups, workspace membership. |
-| **Workspace** | Working space — chat room + environment. Humans and agents work together. |
-| **Agent** | An agent instance in a workspace. References an AgentHarness or is described inline. |
+| **User** | A human in the system. Identity, groups, realm membership. |
+| **Realm** | Working space — chat room + environment. Humans and agents work together. |
+| **Agent** | An agent instance in a realm. References an AgentHarness or is described inline. |
 | **AgentHarness** | Agent wrapper: provider, model, skills, tools. Reusable. |
 | **Skill** | Runtime wrapper for an Agent Skill: tools binding, suggested policies, risk tier. Content — Agent Skills spec (SKILL.md). |
 | **ToolProvider** | MCP server — source of tools. Registered in MCP Gateway. |
 | **Policy** | Access rule for tools: who, what, effect (allow / deny / approval_required). |
 | **Grant** | Delegation of a specific right: once, temporary, permanent. |
 | **Approval** | Request for permission to make a tool call. Created by runtime, answered by approver via JWT. |
-| **NotificationChannel** | Event delivery channel: approvals, messages, workspace changes. |
+| **NotificationChannel** | Event delivery channel: approvals, messages, realm changes. |
 | **EventProvider** | Source of external events: GitHub webhooks, PagerDuty, cron. |
-| **Subscription** | On event from EventProvider → create workspace from template. |
-| **WorkspaceTemplate** | Template for automatic workspace creation. |
-| **Checkpoint** | Snapshot of workspace state. Rollback, clone, restore. |
+| **Subscription** | On event from EventProvider → create realm from template. |
+| **RealmTemplate** | Template for automatic realm creation. |
+| **Checkpoint** | Snapshot of realm state. Rollback, clone, restore. |
 | **CustomResourceDefinition** | Custom resource definition. Extends the specification without changing core. |
 | **AuditEntry** | Audit log entry: who, what, when, where, result. Immutable. |
 
@@ -78,8 +78,8 @@ Analysis of existing platforms (Devin, GitHub Copilot, Cursor, Factory, Replit) 
 
 The protocol is split into two layers:
 
-- **Control plane (Agent Relay API)** — resource management: workspaces, agents, grants, policies. Kubernetes-style REST API.
-- **Data plane (ACP)** — interaction within workspace: messages, tool calls, streaming. Workspace exposes an ACP endpoint.
+- **Control plane (Agent Relay API)** — resource management: realms, agents, grants, policies. Kubernetes-style REST API.
+- **Data plane (ACP)** — interaction within realm: messages, tool calls, streaming. Realm exposes an ACP endpoint.
 
 Relay is responsible for "what exists and who has access." ACP is responsible for "what happens inside."
 
@@ -97,12 +97,12 @@ flowchart TB
         PE[Policy Engine]
         AL[Audit Log]
         NF[Notification Service\nwebhook · email · ACP]
-        WM[Workspace Manager]
+        WM[Realm Manager]
         AM[Agent Manager]
         SM[Subscription Manager]
     end
 
-    subgraph Workspace["Workspace Environment"]
+    subgraph Realm["Realm Environment"]
         ENV[Environment\ndocker · k8s · local]
         A1[Agent 1]
         A2[Agent 2]
@@ -124,7 +124,7 @@ flowchart TB
 
     EP1 -- webhook --> SM
     EP2 -- webhook --> SM
-    SM -- create workspace --> WM
+    SM -- create realm --> WM
 
     API --> WM
     API --> AM
@@ -145,14 +145,14 @@ flowchart TB
     GW --> REG
 
     classDef runtime fill:#e8e0f0,stroke:#5b21b6,color:#1e1b4b,stroke-width:2px;
-    classDef workspace fill:#fde7d9,stroke:#c2410c,color:#431407,stroke-width:2px;
+    classDef realm fill:#fde7d9,stroke:#c2410c,color:#431407,stroke-width:2px;
     classDef client fill:#d9f2e3,stroke:#2d6a4f,color:#123524,stroke-width:2px;
     classDef external fill:#dbeafe,stroke:#1d4ed8,color:#0f172a,stroke-width:2px;
     classDef gateway fill:#fef3c7,stroke:#d97706,color:#451a03,stroke-width:2px;
 
     class API,PE,AL,NF,WM,AM,SM runtime;
     class GW gateway;
-    class ENV,A1,A2 workspace;
+    class ENV,A1,A2 realm;
     class IDE,WebUI,Bot client;
     class MCP1,MCP2,REG,EP1,EP2 external;
 ```
@@ -160,78 +160,78 @@ flowchart TB
 ### 4.3 Key Components
 
 - **Control Plane API** — REST API for resource management.
-- **Workspace Manager** — creation, launch, and shutdown of workspaces and environments. Exposes ACP endpoint.
+- **Realm Manager** — creation, launch, and shutdown of realms and environments. Exposes ACP endpoint.
 - **Agent Manager** — agent lifecycle: launch, stop, health check.
 - **MCP Gateway** — single point of access to tools. Policy check, approval, secret injection, audit, rate limiting, proxying to MCP servers. Includes a registry for discovery.
 - **Policy Engine** — computation of effective permissions. Allow/deny/approval_required.
 - **Notification Service** — delivery of events and approval requests via webhook, email, ACP.
-- **Subscription Manager** — processing of external events, workspace creation from templates.
+- **Subscription Manager** — processing of external events, realm creation from templates.
 - **Audit Log** — immutable log of all actions.
 
-### 4.4 Workspace
+### 4.4 Realm
 
-Workspace is the primary working space. On one hand — a chat room where humans and agents communicate. On the other — a controlled environment with shared filesystem, tools, code, and data.
+Realm is the primary working space. On one hand — a chat room where humans and agents communicate. On the other — a controlled environment with shared filesystem, tools, code, and data.
 
-Environment is a nested part of workspace: runtime backend (docker, k8s, local), filesystem, mounts, network policy, secrets. Environment has its own lifecycle — it can be restarted without recreating the workspace.
+Environment is a nested part of realm: runtime backend (docker, k8s, local), filesystem, mounts, network policy, secrets. Environment has its own lifecycle — it can be restarted without recreating the realm.
 
-Workspace has a stable identity that includes the namespace. Format: `workspace.namespace@host`. For example: `payments-debug.acme-corp@relay.example.com`. The identity is globally unique and is used for grants, audit trail, membership, ACP endpoint, and external references. The ACP endpoint is derived from identity: `acp://payments-debug.acme-corp@relay.example.com`.
+Realm has a stable identity that includes the namespace. Format: `realm.namespace@host`. For example: `payments-debug.acme-corp@relay.example.com`. The identity is globally unique and is used for grants, audit trail, membership, ACP endpoint, and external references. The ACP endpoint is derived from identity: `acp://payments-debug.acme-corp@relay.example.com`.
 
-Workspace can subscribe to external events via EventProvider. Events arrive in the workspace as chat messages — agents see them and can react. For example, a workspace is subscribed to GitHub push events: on a new commit, an agent receives a message, runs tests, and reports the result. This allows the workspace to be not just a passive space but a reactive environment.
+Realm can subscribe to external events via EventProvider. Events arrive in the realm as chat messages — agents see them and can react. For example, a realm is subscribed to GitHub push events: on a new commit, an agent receives a message, runs tests, and reports the result. This allows the realm to be not just a passive space but a reactive environment.
 
-#### Workspace as Event Producer
+#### Realm as Event Producer
 
-Workspace not only receives events but also emits them. Outgoing events are generated automatically (lifecycle changes) and explicitly (an agent or human emits an event via API).
+Realm not only receives events but also emits them. Outgoing events are generated automatically (lifecycle changes) and explicitly (an agent or human emits an event via API).
 
 Types of outgoing events:
-- **lifecycle** — `workspace.started`, `workspace.stopped`, `workspace.failed`, `workspace.completed`
+- **lifecycle** — `realm.started`, `realm.stopped`, `realm.failed`, `realm.completed`
 - **agent** — `agent.started`, `agent.stopped`, `agent.completed`
 - **custom** — arbitrary events emitted by an agent: `review.done`, `tests.passed`, `deploy.ready`
 
 A completion event can carry a payload — work result, artifacts, links:
 
 ```yaml
-kind: WorkspaceEvent
+kind: RealmEvent
 metadata:
-  workspace: pr-review-42
+  realm: pr-review-42
   timestamp: "2026-03-07T15:00:00Z"
 spec:
-  type: workspace.completed
+  type: realm.completed
   payload:
     result: approved
     summary: "No critical issues found, 2 minor suggestions"
     artifacts:
       - type: report
-        url: /workspaces/pr-review-42/artifacts/review.md
+        url: /realms/pr-review-42/artifacts/review.md
 ```
 
-Outgoing workspace events are available to others through the same EventProvider/Subscription mechanism. This allows building **workspace chains** without an external orchestrator:
+Outgoing realm events are available to others through the same EventProvider/Subscription mechanism. This allows building **realm chains** without an external orchestrator:
 
 ```
-PR opened → [code-review workspace] → review.completed → [deploy workspace] → deploy.completed → [monitoring workspace]
+PR opened → [code-review realm] → review.completed → [deploy realm] → deploy.completed → [monitoring realm]
 ```
 
-Each step is a full workspace with humans, agents, and tools. The connection is through events.
+Each step is a full realm with humans, agents, and tools. The connection is through events.
 
 #### History
 
-Workspace message history is an ACP artifact. Message format, streaming, context compaction are the responsibility of ACP and the agent. Relay is responsible only for **persistence and access**: history is stored as long as the workspace exists (including Stopped and Archived states), and is deleted with the workspace.
+Realm message history is an ACP artifact. Message format, streaming, context compaction are the responsibility of ACP and the agent. Relay is responsible only for **persistence and access**: history is stored as long as the realm exists (including Stopped and Archived states), and is deleted with the realm.
 
 Relay provides a read-only API to history for UI, search, and export.
 
 #### Checkpoints & Snapshots
 
-Workspace supports checkpoints — snapshots of environment state (filesystem, databases, conversation context). Checkpoints are created automatically (before dangerous operations, on schedule) or manually.
+Realm supports checkpoints — snapshots of environment state (filesystem, databases, conversation context). Checkpoints are created automatically (before dangerous operations, on schedule) or manually.
 
 Operations:
-- **Checkpoint** — create a snapshot of the current workspace state.
-- **Rollback** — revert workspace to a previous checkpoint.
-- **Clone** — create a new workspace from an existing checkpoint. Useful for parallel experiments, debugging, or handing off context to another team.
+- **Checkpoint** — create a snapshot of the current realm state.
+- **Rollback** — revert realm to a previous checkpoint.
+- **Clone** — create a new realm from an existing checkpoint. Useful for parallel experiments, debugging, or handing off context to another team.
 
 Default rules:
-- One environment per workspace.
+- One environment per realm.
 - Participants see a single filesystem view.
 - Tool access is explicit and revocable.
-- Permissions are workspace-scoped, not global.
+- Permissions are realm-scoped, not global.
 
 ### 4.5 MCP Gateway
 
@@ -278,9 +278,9 @@ The risk tier is set when registering a tool in ToolProvider. A Policy can overr
 
 #### Policy Hierarchy
 
-Policies are inherited top-down: **namespace → workspace**. A lower level can only **tighten** the upper level's policy, not loosen it. The namespace admin sets the baseline — a workspace owner can add restrictions but cannot remove existing ones.
+Policies are inherited top-down: **namespace → realm**. A lower level can only **tighten** the upper level's policy, not loosen it. The namespace admin sets the baseline — a realm owner can add restrictions but cannot remove existing ones.
 
-For example, if a namespace policy denies `shell.execute` for agents — a workspace policy cannot allow it. But a workspace can additionally deny `fs.write`, even if the namespace allows it.
+For example, if a namespace policy denies `shell.execute` for agents — a realm policy cannot allow it. But a realm can additionally deny `fs.write`, even if the namespace allows it.
 
 #### Approval Flow
 
@@ -295,17 +295,17 @@ JWT is single-use, signed with the runtime's key. Approval has a TTL — on time
 
 ### 4.8 Events & Subscriptions
 
-Workspaces are created automatically on external events:
+Realms are created automatically on external events:
 
 - **EventProvider** — event source (GitHub webhooks, PagerDuty, cron). Runtime exposes an endpoint for each provider.
-- **WorkspaceTemplate** — workspace template with environment, agents, members, policies.
-- **Subscription** — binding: event + filter → create workspace from template.
+- **RealmTemplate** — realm template with environment, agents, members, policies.
+- **Subscription** — binding: event + filter → create realm from template.
 
-Two modes: create a new workspace (Subscription) or deliver an event to an already running workspace (event routing).
+Two modes: create a new realm (Subscription) or deliver an event to an already running realm (event routing).
 
 ### 4.9 Notifications
 
-NotificationChannel delivers workspace events to users outside an ACP connection: approval requests, agent messages, workspace changes, agent status. Channel types: webhook, email, ACP event.
+NotificationChannel delivers realm events to users outside an ACP connection: approval requests, agent messages, realm changes, agent status. Channel types: webhook, email, ACP event.
 
 ### 4.10 Authentication
 
@@ -313,7 +313,7 @@ The runtime does not implement OAuth/OIDC login flow — it only validates token
 
 **Humans** authenticate via OIDC. The client (IDE, Web UI, CLI) obtains a JWT from an OIDC provider (Keycloak, Google, Azure AD, etc.) and passes it in `Authorization: Bearer {token}`. The runtime validates the signature and extracts identity from claims (email, sub, groups).
 
-**Agents** receive ServiceAccount tokens — JWTs issued by the runtime itself. The token is scoped to a specific workspace and has limited permissions. The agent does not go through an OAuth flow — the runtime generates the token when launching the agent.
+**Agents** receive ServiceAccount tokens — JWTs issued by the runtime itself. The token is scoped to a specific realm and has limited permissions. The agent does not go through an OAuth flow — the runtime generates the token when launching the agent.
 
 **Runtime config:**
 
@@ -335,9 +335,9 @@ All API and ACP requests must contain a valid token. `GET /apis/relay/v1/whoami`
 
 ### 4.11 Custom Resources
 
-The specification defines core resources (Workspace, Agent, Policy, etc.), but the runtime is open for extension. Anyone can define their own resources through `CustomResourceDefinition` — analogous to CRDs in Kubernetes.
+The specification defines core resources (Realm, Agent, Policy, etc.), but the runtime is open for extension. Anyone can define their own resources through `CustomResourceDefinition` — analogous to CRDs in Kubernetes.
 
-A custom resource automatically gets a full API: CRUD, watch, schema validation. It can be global or workspace-scoped. Core mechanisms (audit, RBAC, watch) work with custom resources the same way as with core resources.
+A custom resource automatically gets a full API: CRUD, watch, schema validation. It can be global or realm-scoped. Core mechanisms (audit, RBAC, watch) work with custom resources the same way as with core resources.
 
 ```yaml
 kind: CustomResourceDefinition
@@ -348,7 +348,7 @@ spec:
   names:
     kind: Project
     plural: projects
-  scope: workspace
+  scope: realm
   schema:
     spec:
       type: object
@@ -364,14 +364,14 @@ After registering a CRD, you can create resources:
 kind: Project
 metadata:
   name: payments
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   repo: github.com/org/payments
   language: typescript
   ci: github-actions
 ```
 
-API: `/apis/example.com/v1/workspaces/{name}/projects/{project}`
+API: `/apis/example.com/v1/realms/{name}/projects/{project}`
 
 Custom resources are deeply integrated with the permissions system. A Policy can reference custom resources just like tools — you can control who has the right to create, read, update, and delete specific custom resources:
 
@@ -379,7 +379,7 @@ Custom resources are deeply integrated with the permissions system. A Policy can
 kind: Policy
 metadata:
   name: only-owners-manage-projects
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   subject: role:member
   resources: ["projects.*"]
@@ -393,12 +393,12 @@ This allows building domain-specific extensions (Project, Task, Pipeline, Deploy
 
 ### 4.12 Namespaces
 
-Namespace is the isolation and tenancy level. Analogous to Kubernetes namespaces. All resources (workspaces, agents, policies, grants, templates, etc.) belong to a namespace.
+Namespace is the isolation and tenancy level. Analogous to Kubernetes namespaces. All resources (realms, agents, policies, grants, templates, etc.) belong to a namespace.
 
 Namespace provides:
 - **Isolation** — resources of one namespace are not visible from another.
 - **RBAC** — permissions can be granted at the namespace level (e.g., admin of the entire namespace).
-- **Quotas** — resource limits per namespace (workspaces, agents, storage).
+- **Quotas** — resource limits per namespace (realms, agents, storage).
 - **Billing** — namespace = billing unit.
 
 ```yaml
@@ -410,11 +410,11 @@ spec:
   admins:
     - alice@acme.com
   quotas:
-    maxWorkspaces: 50
-    maxAgentsPerWorkspace: 10
+    maxRealms: 50
+    maxAgentsPerRealm: 10
 ```
 
-API prefix: `/apis/relay/v1/namespaces/{ns}/workspaces/...`
+API prefix: `/apis/relay/v1/namespaces/{ns}/realms/...`
 
 For simple installations, a single `default` namespace can be used — the system works as-is without extra complexity.
 
@@ -438,14 +438,14 @@ Agent Relay security is built on **deterministic controls**, not prompt steering
 
 - **Default deny** — an agent has no access to tools until an explicit grant or policy is issued.
 - **Deterministic enforcement** — all checks are performed by MCP Gateway and Policy Engine, not the LLM.
-- **Least privilege** — the agent receives the minimum permissions needed for the task. ServiceAccount token is scoped to the workspace.
-- **Policy hierarchy** — namespace policy cannot be loosened by workspace policy.
+- **Least privilege** — the agent receives the minimum permissions needed for the task. ServiceAccount token is scoped to the realm.
+- **Policy hierarchy** — namespace policy cannot be loosened by realm policy.
 - **Audit everything** — all tool calls, approvals, and permission changes are logged immutably.
 
 #### Threat Model
 
 **1. Prompt injection via shared context.**
-The agent reads data from the workspace (files, messages, events) — malicious content can contain instructions. Defense: MCP Gateway checks permissions on every tool call regardless of what the agent "asked for." Policy Engine does not trust agent intent; it checks the action.
+The agent reads data from the realm (files, messages, events) — malicious content can contain instructions. Defense: MCP Gateway checks permissions on every tool call regardless of what the agent "asked for." Policy Engine does not trust agent intent; it checks the action.
 
 **2. Data exfiltration.**
 The agent may attempt to send data out through tool calls (HTTP requests, shell commands, MCP servers). Defense: network policy at the environment level (egress allowlist, default-deny), risk tier `high` for network-accessing tools, audit log for detection.
@@ -454,7 +454,7 @@ The agent may attempt to send data out through tool calls (HTTP requests, shell 
 The agent may perform destructive operations: file deletion, drop database, force push. Defense: risk tiers (high-risk tools require approval or are denied by default), checkpoints for rollback, approval flow for dangerous operations.
 
 **4. Privilege escalation.**
-The agent may attempt to gain higher privileges than granted: through another agent, through a tool that provides access to secrets, through workspace event manipulation. Defense: each agent has an isolated ServiceAccount token, secrets are not directly accessible to agents (secret injection via gateway), policy hierarchy prevents loosening.
+The agent may attempt to gain higher privileges than granted: through another agent, through a tool that provides access to secrets, through realm event manipulation. Defense: each agent has an isolated ServiceAccount token, secrets are not directly accessible to agents (secret injection via gateway), policy hierarchy prevents loosening.
 
 ---
 
@@ -491,13 +491,13 @@ GET    /apis/relay/v1/users                     — list users
 GET    /apis/relay/v1/users/{name}              — get user
 PUT    /apis/relay/v1/users/{name}              — update user
 DELETE /apis/relay/v1/users/{name}              — delete user
-GET    /apis/relay/v1/users/{name}/workspaces   — user's workspaces
+GET    /apis/relay/v1/users/{name}/realms   — user's realms
 ```
 
-### 5.2 Workspace
+### 5.2 Realm
 
 ```yaml
-kind: Workspace
+kind: Realm
 metadata:
   name: payments-debug
   namespace: acme-corp
@@ -505,10 +505,10 @@ metadata:
 spec:
   environment:
     backend: docker
-    workingDir: /workspace
+    workingDir: /realm
     mounts:
       - source: git://github.com/org/payments
-        target: /workspace/code
+        target: /realm/code
         mode: rw
     networkPolicy: restricted
     secrets:
@@ -521,49 +521,49 @@ status:
 ```
 
 ```
-POST   /apis/relay/v1/workspaces                           — create workspace
-GET    /apis/relay/v1/workspaces                           — list workspaces
-GET    /apis/relay/v1/workspaces/{name}                    — get workspace
-PUT    /apis/relay/v1/workspaces/{name}                    — update workspace
-DELETE /apis/relay/v1/workspaces/{name}                    — delete workspace
-GET    /apis/relay/v1/workspaces/{name}/status             — workspace status
-PUT    /apis/relay/v1/workspaces/{name}/environment/start  — start environment
-PUT    /apis/relay/v1/workspaces/{name}/environment/stop   — stop environment
-GET    /apis/relay/v1/workspaces?watch=true                — watch changes
+POST   /apis/relay/v1/realms                           — create realm
+GET    /apis/relay/v1/realms                           — list realms
+GET    /apis/relay/v1/realms/{name}                    — get realm
+PUT    /apis/relay/v1/realms/{name}                    — update realm
+DELETE /apis/relay/v1/realms/{name}                    — delete realm
+GET    /apis/relay/v1/realms/{name}/status             — realm status
+PUT    /apis/relay/v1/realms/{name}/environment/start  — start environment
+PUT    /apis/relay/v1/realms/{name}/environment/stop   — stop environment
+GET    /apis/relay/v1/realms?watch=true                — watch changes
 ```
 
 #### History
 
-Read-only API to workspace ACP history.
+Read-only API to realm ACP history.
 
 ```
-GET    /apis/relay/v1/workspaces/{name}/messages                — message history
-GET    /apis/relay/v1/workspaces/{name}/messages?author={a}&type={t}&from={ts}&to={ts}&q={search} — filter and search
+GET    /apis/relay/v1/realms/{name}/messages                — message history
+GET    /apis/relay/v1/realms/{name}/messages?author={a}&type={t}&from={ts}&to={ts}&q={search} — filter and search
 ```
 
 #### Events (outgoing)
 
-Workspace emits events — lifecycle and custom. Agents and external systems can subscribe to them.
+Realm emits events — lifecycle and custom. Agents and external systems can subscribe to them.
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/events               — emit event
-GET    /apis/relay/v1/workspaces/{name}/events               — list events
-GET    /apis/relay/v1/workspaces/{name}/events?watch=true    — subscribe to events (SSE)
+POST   /apis/relay/v1/realms/{name}/events               — emit event
+GET    /apis/relay/v1/realms/{name}/events               — list events
+GET    /apis/relay/v1/realms/{name}/events?watch=true    — subscribe to events (SSE)
 ```
 
-Workspace as EventProvider for other subscriptions:
+Realm as EventProvider for other subscriptions:
 
 ```yaml
 kind: Subscription
 metadata:
   name: deploy-after-review
 spec:
-  provider: workspace://pr-review-*
+  provider: realm://pr-review-*
   filter:
-    type: workspace.completed
+    type: realm.completed
     payload.result: approved
   template: auto-deploy
-  naming: "deploy-{{ event.workspace }}"
+  naming: "deploy-{{ event.realm }}"
 ```
 
 #### Checkpoints
@@ -572,7 +572,7 @@ spec:
 kind: Checkpoint
 metadata:
   name: before-migration
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   description: "Snapshot before running DB migration"
   auto: false
@@ -582,28 +582,28 @@ status:
 ```
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/checkpoints              — create checkpoint
-GET    /apis/relay/v1/workspaces/{name}/checkpoints              — list checkpoints
-GET    /apis/relay/v1/workspaces/{name}/checkpoints/{cp}         — get checkpoint
-DELETE /apis/relay/v1/workspaces/{name}/checkpoints/{cp}         — delete checkpoint
-POST   /apis/relay/v1/workspaces/{name}/checkpoints/{cp}/rollback — rollback to checkpoint
-POST   /apis/relay/v1/workspaces/{name}/checkpoints/{cp}/clone    — create new workspace from checkpoint
+POST   /apis/relay/v1/realms/{name}/checkpoints              — create checkpoint
+GET    /apis/relay/v1/realms/{name}/checkpoints              — list checkpoints
+GET    /apis/relay/v1/realms/{name}/checkpoints/{cp}         — get checkpoint
+DELETE /apis/relay/v1/realms/{name}/checkpoints/{cp}         — delete checkpoint
+POST   /apis/relay/v1/realms/{name}/checkpoints/{cp}/rollback — rollback to checkpoint
+POST   /apis/relay/v1/realms/{name}/checkpoints/{cp}/clone    — create new realm from checkpoint
 ```
 
 #### Event Subscriptions
 
-Workspace subscription to events from EventProvider. Events are delivered as messages into the workspace.
+Realm subscription to events from EventProvider. Events are delivered as messages into the realm.
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/eventsubscriptions              — subscribe to events
-GET    /apis/relay/v1/workspaces/{name}/eventsubscriptions              — list subscriptions
-DELETE /apis/relay/v1/workspaces/{name}/eventsubscriptions/{sub}        — unsubscribe
+POST   /apis/relay/v1/realms/{name}/eventsubscriptions              — subscribe to events
+GET    /apis/relay/v1/realms/{name}/eventsubscriptions              — list subscriptions
+DELETE /apis/relay/v1/realms/{name}/eventsubscriptions/{sub}        — unsubscribe
 ```
 
 ```yaml
-kind: WorkspaceEventSubscription
+kind: RealmEventSubscription
 metadata:
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   provider: github-org
   filter:
@@ -616,16 +616,16 @@ spec:
 ```yaml
 kind: Member
 metadata:
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   subject: alice@example.com
   role: owner
 ```
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/members              — add member
-GET    /apis/relay/v1/workspaces/{name}/members              — list members
-DELETE /apis/relay/v1/workspaces/{name}/members/{subject}    — remove member
+POST   /apis/relay/v1/realms/{name}/members              — add member
+GET    /apis/relay/v1/realms/{name}/members              — list members
+DELETE /apis/relay/v1/realms/{name}/members/{subject}    — remove member
 ```
 
 Roles: `owner`, `member`, `viewer`, `approver`. Access via direct assignment or group.
@@ -657,13 +657,13 @@ Skills bring instructions (SKILL.md content) and suggested tools/policies. A har
 
 #### Agent
 
-An agent instance in a workspace. References an AgentHarness or is described inline.
+An agent instance in a realm. References an AgentHarness or is described inline.
 
 ```yaml
 kind: Agent
 metadata:
   name: reviewer
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   harness: code-reviewer
 status:
@@ -676,7 +676,7 @@ Inline variant (without a separate AgentHarness):
 kind: Agent
 metadata:
   name: helper
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   provider: anthropic/claude-code
   model: claude-sonnet-4-20250514
@@ -686,12 +686,12 @@ status:
 ```
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/agents               — add agent
-GET    /apis/relay/v1/workspaces/{name}/agents               — list agents
-GET    /apis/relay/v1/workspaces/{name}/agents/{agent}       — get agent
-DELETE /apis/relay/v1/workspaces/{name}/agents/{agent}       — remove agent
-PUT    /apis/relay/v1/workspaces/{name}/agents/{agent}/start — start agent
-PUT    /apis/relay/v1/workspaces/{name}/agents/{agent}/stop  — stop agent
+POST   /apis/relay/v1/realms/{name}/agents               — add agent
+GET    /apis/relay/v1/realms/{name}/agents               — list agents
+GET    /apis/relay/v1/realms/{name}/agents/{agent}       — get agent
+DELETE /apis/relay/v1/realms/{name}/agents/{agent}       — remove agent
+PUT    /apis/relay/v1/realms/{name}/agents/{agent}/start — start agent
+PUT    /apis/relay/v1/realms/{name}/agents/{agent}/stop  — stop agent
 ```
 
 AgentHarness API:
@@ -807,13 +807,13 @@ DELETE /apis/relay/v1/gateway/servers/{name}                 — delete MCP serv
 GET    /apis/relay/v1/gateway/tools?q={query}                — search tools
 ```
 
-Connecting to a workspace:
+Connecting to a realm:
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/servers              — connect MCP server
-GET    /apis/relay/v1/workspaces/{name}/servers              — list connected servers
-DELETE /apis/relay/v1/workspaces/{name}/servers/{server}     — disconnect MCP server
-GET    /apis/relay/v1/workspaces/{name}/tools                — all workspace tools
+POST   /apis/relay/v1/realms/{name}/servers              — connect MCP server
+GET    /apis/relay/v1/realms/{name}/servers              — list connected servers
+DELETE /apis/relay/v1/realms/{name}/servers/{server}     — disconnect MCP server
+GET    /apis/relay/v1/realms/{name}/tools                — all realm tools
 ```
 
 ### 5.6 Permissions
@@ -824,7 +824,7 @@ GET    /apis/relay/v1/workspaces/{name}/tools                — all workspace t
 kind: Policy
 metadata:
   name: agents-need-approval-for-shell
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   subject: role:agent
   tools: ["shell.*"]
@@ -836,7 +836,7 @@ spec:
 kind: Policy
 metadata:
   name: everyone-can-read
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   subject: "*"
   tools: ["fs.read", "github.issues.read"]
@@ -875,7 +875,7 @@ spec:
   effect: deny
 ```
 
-Namespace-level policies are inherited by all workspaces and cannot be loosened:
+Namespace-level policies are inherited by all realms and cannot be loosened:
 
 ```
 POST   /apis/relay/v1/namespaces/{ns}/policies             — namespace policy
@@ -883,11 +883,11 @@ GET    /apis/relay/v1/namespaces/{ns}/policies             — list namespace po
 ```
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/policies             — create policy
-GET    /apis/relay/v1/workspaces/{name}/policies             — list policies
-GET    /apis/relay/v1/workspaces/{name}/policies/{policy}    — get policy
-PUT    /apis/relay/v1/workspaces/{name}/policies/{policy}    — update policy
-DELETE /apis/relay/v1/workspaces/{name}/policies/{policy}    — delete policy
+POST   /apis/relay/v1/realms/{name}/policies             — create policy
+GET    /apis/relay/v1/realms/{name}/policies             — list policies
+GET    /apis/relay/v1/realms/{name}/policies/{policy}    — get policy
+PUT    /apis/relay/v1/realms/{name}/policies/{policy}    — update policy
+DELETE /apis/relay/v1/realms/{name}/policies/{policy}    — delete policy
 ```
 
 #### Grant
@@ -896,7 +896,7 @@ DELETE /apis/relay/v1/workspaces/{name}/policies/{policy}    — delete policy
 kind: Grant
 metadata:
   name: alice-shell-access
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   subject: alice@example.com
   permission: shell.execute
@@ -905,10 +905,10 @@ spec:
 ```
 
 ```
-POST   /apis/relay/v1/workspaces/{name}/grants             — create grant
-GET    /apis/relay/v1/workspaces/{name}/grants             — list grants
-DELETE /apis/relay/v1/workspaces/{name}/grants/{grant}     — revoke grant
-GET    /apis/relay/v1/workspaces/{name}/grants/effective?subject={subject} — effective permissions
+POST   /apis/relay/v1/realms/{name}/grants             — create grant
+GET    /apis/relay/v1/realms/{name}/grants             — list grants
+DELETE /apis/relay/v1/realms/{name}/grants/{grant}     — revoke grant
+GET    /apis/relay/v1/realms/{name}/grants/effective?subject={subject} — effective permissions
 ```
 
 #### Approval
@@ -917,7 +917,7 @@ GET    /apis/relay/v1/workspaces/{name}/grants/effective?subject={subject} — e
 kind: Approval
 metadata:
   name: approval-123
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   requestedBy: agents/claude
   action: tool.call
@@ -933,9 +933,9 @@ status:
 ```
 
 ```
-GET    /apis/relay/v1/workspaces/{name}/approvals            — list pending approvals
-GET    /apis/relay/v1/workspaces/{name}/approvals/{id}       — get approval
-PUT    /apis/relay/v1/workspaces/{name}/approvals/{id}       — respond (approve/deny)
+GET    /apis/relay/v1/realms/{name}/approvals            — list pending approvals
+GET    /apis/relay/v1/realms/{name}/approvals/{id}       — get approval
+PUT    /apis/relay/v1/realms/{name}/approvals/{id}       — respond (approve/deny)
 ```
 
 #### Approval Flow: Example
@@ -956,7 +956,7 @@ Agent `claude` wants to execute `shell.execute("npm run migration")`. Policy req
 kind: NotificationChannel
 metadata:
   name: slack-ops
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   type: webhook
   endpoint: https://slack-bot.example.com/relay
@@ -968,16 +968,16 @@ spec:
 kind: NotificationChannel
 metadata:
   name: alice-messages
-  workspace: payments-debug
+  realm: payments-debug
 spec:
   type: email
   events: [message.created]
   targets: [alice@example.com]
   config:
-    templateUrl: https://relay.example.com/workspace/{workspace}/messages
+    templateUrl: https://relay.example.com/realm/{realm}/messages
 ```
 
-Event types: `approval.requested`, `message.created`, `agent.status_changed`, `workspace.updated`, `*`.
+Event types: `approval.requested`, `message.created`, `agent.status_changed`, `realm.updated`, `*`.
 
 ### 5.8 Events & Subscriptions
 
@@ -1012,19 +1012,19 @@ DELETE /apis/relay/v1/eventproviders/{name}                  — delete event pr
 
 Each webhook-based provider gets an endpoint: `POST /hooks/{provider-name}`.
 
-#### WorkspaceTemplate
+#### RealmTemplate
 
 ```yaml
-kind: WorkspaceTemplate
+kind: RealmTemplate
 metadata:
   name: code-review
 spec:
   environment:
     backend: docker
-    workingDir: /workspace
+    workingDir: /realm
     mounts:
       - source: "{{ event.repository.clone_url }}"
-        target: /workspace/code
+        target: /realm/code
         mode: rw
   agents:
     - harness: code-reviewer
@@ -1075,7 +1075,7 @@ DELETE /apis/relay/v1/subscriptions/{name}                   — delete subscrip
 ```yaml
 kind: AuditEntry
 metadata:
-  workspace: payments-debug
+  realm: payments-debug
   timestamp: "2026-03-07T14:30:00Z"
 spec:
   subject: agents/claude
@@ -1088,28 +1088,28 @@ spec:
 ```
 
 ```
-GET    /apis/relay/v1/workspaces/{name}/audit                — audit log
-GET    /apis/relay/v1/workspaces/{name}/audit?subject={subject}&action={action}&from={ts}&to={ts} — filter
+GET    /apis/relay/v1/realms/{name}/audit                — audit log
+GET    /apis/relay/v1/realms/{name}/audit?subject={subject}&action={action}&from={ts}&to={ts} — filter
 ```
 
 ---
 
 ## 6. Data Plane: ACP
 
-ACP is used for interaction within a workspace. When a workspace is running, it exposes an ACP endpoint (in `status.acpEndpoint`). Participants connect to it for:
+ACP is used for interaction within a realm. When a realm is running, it exposes an ACP endpoint (in `status.acpEndpoint`). Participants connect to it for:
 
 - Sending messages to agents
 - Receiving responses and streaming
-- Tool calls within the workspace environment
+- Tool calls within the realm environment
 - Reading history
 
 ACP is used as a subspec — Agent Relay does not redefine message format but delegates this to ACP.
 
 ### Example Flow
 
-1. `POST /apis/relay/v1/workspaces` — created workspace (Relay API)
+1. `POST /apis/relay/v1/realms` — created realm (Relay API)
 2. Runtime launches environment and agents
-3. `GET /apis/relay/v1/workspaces/payments-debug` — obtained `status.acpEndpoint`
+3. `GET /apis/relay/v1/realms/payments-debug` — obtained `status.acpEndpoint`
 4. Human connects to `acp://payments-debug@relay.example.com` — this is ACP
 5. Inside ACP — communication with agents, tool calls, history
 
@@ -1117,7 +1117,7 @@ ACP is used as a subspec — Agent Relay does not redefine message format but de
 
 ## 7. Lifecycle
 
-### Workspace Phases
+### Realm Phases
 
 ```
 Pending --> Starting --> Running --> Stopping --> Stopped --> Archived
@@ -1127,9 +1127,9 @@ Pending --> Starting --> Running --> Stopping --> Stopped --> Archived
                       \--> Failed
 ```
 
-In the Running state, a workspace can create checkpoints and roll back to them. Clone creates a new workspace (Pending) from a checkpoint of any workspace (including Stopped/Archived).
+In the Running state, a realm can create checkpoints and roll back to them. Clone creates a new realm (Pending) from a checkpoint of any realm (including Stopped/Archived).
 
-Environment has its own lifecycle (same phases). It can be restarted without recreating the workspace.
+Environment has its own lifecycle (same phases). It can be restarted without recreating the realm.
 
 ### Agent Phases
 
@@ -1184,13 +1184,13 @@ GET    /apis/relay/v1/whoami     — current user and their permissions
 - ~~**Multi-tenancy / Organizations**~~ — resolved via Namespace (see 3.12).
 - **Secrets management** — how secrets are stored, rotated, and who has access to secrets in the environment. Whether a separate Secret resource or integration with Vault/KMS is needed.
 - ~~**History / Conversation model**~~ — resolved: history is an ACP artifact, Relay stores and provides a read-only API (see 4.4, 5.2).
-- **Agent-to-agent communication** — whether agents within a workspace can communicate directly with each other or only through the shared environment and ACP.
+- **Agent-to-agent communication** — whether agents within a realm can communicate directly with each other or only through the shared environment and ACP.
 - ~~**Persistence / Snapshots**~~ — resolved via Checkpoint (see 4.4, 5.2).
-- **Quotas & Limits** — resource limits: workspaces, agents, tool calls, storage, compute per workspace/user/org.
+- **Quotas & Limits** — resource limits: realms, agents, tool calls, storage, compute per realm/user/org.
 - **API versioning** — API evolution strategy, backwards compatibility, deprecation policy.
 
 ---
 
 ## Bottom Line
 
-Agent Relay Protocol is a standard API for creating workspaces and launching agents in a shared controlled environment where humans connect, delegate access, and safely work together with agents.
+Agent Relay Protocol is a standard API for creating realms and launching agents in a shared controlled environment where humans connect, delegate access, and safely work together with agents.
