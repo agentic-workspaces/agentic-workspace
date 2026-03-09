@@ -1,0 +1,19 @@
+{
+  "name": "agrp-wmlet",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "wmlet": "bun run wmlet.ts",
+    "manager": "bun run wsmanager.ts",
+    "dev:wmlet": "bun --watch run wmlet.ts",
+    "dev:manager": "bun --watch run wsmanager.ts"
+  },
+  "dependencies": {},
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

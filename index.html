@@ -3,32 +3,22 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Agent Relay Protocol (AGRP) RFC Draft</title>
+    <title>Agentic Workspace Protocol — Draft</title>
     <meta
       name="description"
-      content="Draft RFC for the Agent Relay Protocol (AGRP), a switching fabric and realm infrastructure for agent meshes."
+      content="Draft spec for the Agentic Workspace Protocol — environments where humans and agents collaborate on shared resources."
     >
-    <script
-      defer
-      src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": "3953158f766746cd8bd3992a5b56946d"}'
-    ></script>
     <style>
       :root {
         color-scheme: light;
         --bg: #ffffff;
-        --panel: #ffffff;
         --ink: #111111;
         --muted: #444444;
         --line: #b5b5b5;
-        --accent: #111111;
-        --accent-soft: #ffffff;
         --code: #f7f7f7;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -38,14 +28,11 @@
       }
 
       a {
-        color: var(--accent);
+        color: var(--ink);
         text-underline-offset: 0.18rem;
       }
 
-      code,
-      pre {
-        font-family: inherit;
-      }
+      code, pre { font-family: inherit; }
 
       .page {
         max-width: 96ch;
@@ -56,8 +43,6 @@
       .hero {
         padding: 0 0 1rem;
         border-bottom: 1px solid var(--line);
-        background: transparent;
-        box-shadow: none;
       }
 
       .eyebrow {
@@ -68,32 +53,11 @@
         color: var(--muted);
       }
 
-      .hero h1 {
-        margin: 0;
-        font-size: clamp(1.35rem, 3vw, 1.8rem);
-        line-height: 1.3;
-        font-weight: 700;
-      }
-
-      .hero p {
-        margin: 0.75rem 0 0;
-        max-width: none;
-        color: inherit;
-        line-height: 1.6;
-      }
-
       .hero-links {
         display: flex;
         flex-wrap: wrap;
         gap: 1rem;
         margin-top: 0.9rem;
-      }
-
-      .hero-links a {
-        display: inline-block;
-        padding: 0;
-        border: 0;
-        background: transparent;
       }
 
       .status {
@@ -102,78 +66,21 @@
         font-size: 0.9rem;
       }
 
-      .feedback {
-        margin-top: 1.5rem;
-        padding-top: 1rem;
-        border-top: 1px solid var(--line);
-      }
-
-      .feedback p {
-        margin: 0;
-        line-height: 1.6;
-      }
-
-      .feedback-links {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
-        margin-top: 0.9rem;
-      }
-
       .document {
         margin-top: 1.25rem;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        box-shadow: none;
       }
 
-      .document h1,
-      .document h2,
-      .document h3,
-      .document h4 {
+      .document h1, .document h2, .document h3, .document h4 {
         line-height: 1.35;
         scroll-margin-top: 1rem;
         font-weight: 700;
       }
 
-      .document h1 {
-        font-size: 1.45rem;
-      }
+      .document h1 { font-size: 1.45rem; }
+      .document h2 { margin-top: 1.9rem; font-size: 1.2rem; }
+      .document h3 { margin-top: 1.35rem; font-size: 1.05rem; }
 
-      .document h2 {
-        margin-top: 1.9rem;
-        font-size: 1.2rem;
-      }
-
-      .document h3 {
-        margin-top: 1.35rem;
-        font-size: 1.05rem;
-      }
-
-      .document p,
-      .document li {
-        line-height: 1.65;
-      }
-
-      .document table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 1rem 0 1.35rem;
-        font-size: 0.94rem;
-      }
-
-      .document th,
-      .document td {
-        padding: 0.55rem 0.65rem;
-        border: 1px solid var(--line);
-        vertical-align: top;
-      }
-
-      .document th {
-        background: #fafafa;
-        text-align: left;
-      }
+      .document p, .document li { line-height: 1.65; }
 
       .document pre {
         overflow-x: auto;
@@ -205,245 +112,49 @@
         margin: 1.75rem 0;
       }
 
-      .document .mermaid {
-        margin: 1rem 0 1.35rem;
-        padding: 0.85rem;
-        background: var(--accent-soft);
-        border: 1px solid var(--line);
-        overflow-x: auto;
-      }
-
       .error {
         padding: 1rem;
         border: 1px solid var(--line);
         background: #fbfbfb;
-        color: var(--ink);
       }
 
       @media (max-width: 720px) {
-        .page {
-          padding: 1rem 0.75rem 2rem;
-        }
-
-        .hero,
-        .document {
-          padding: 0;
-        }
-
-        .document table {
-          display: block;
-          overflow-x: auto;
-        }
+        .page { padding: 1rem 0.75rem 2rem; }
       }
     </style>
   </head>
   <body>
     <main class="page">
       <section class="hero">
-        <p class="eyebrow">Request For Comments / Draft / March 2026</p>
+        <p class="eyebrow">Draft / March 2026</p>
         <div class="hero-links">
-          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc">Repository</a>
-          <a href="./agrp-rfc.md">Markdown Source</a>
-          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/1">Discussion</a>
+          <a href="https://github.com/niquola/agentic-workspace">Repository</a>
+          <a href="./agent-workspace.md">Markdown Source</a>
         </div>
-        <p id="status" class="status">Loading RFC text...</p>
+        <p id="status" class="status">Loading spec...</p>
       </section>
 
       <article id="content" class="document" aria-live="polite"></article>
-      <section class="feedback" aria-labelledby="feedback-heading">
-        <h2 id="feedback-heading">Feedback</h2>
-        <p>
-          Use GitHub to ask questions, propose changes, report issues, or edit the RFC source.
-        </p>
-        <div class="feedback-links">
-          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/1">Main discussion thread</a>
-          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/new?category=q-a">Ask a question</a>
-          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/discussions/new?category=ideas">Propose a change</a>
-          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/issues/new?title=RFC%20feedback%3A%20&body=Section%20or%20heading%3A%0A%0AFeedback%3A%0A">Report an issue</a>
-          <a href="https://github.com/Agent-Relay-Protocol/agrp-rfc/edit/main/agrp-rfc.md">Edit this RFC</a>
-        </div>
-      </section>
+
       <noscript>
         <p class="error">
-          This page renders <code>agrp-rfc.md</code> in the browser and requires JavaScript.
-          You can still read the source directly at <a href="./agrp-rfc.md">agrp-rfc.md</a>.
+          This page renders <code>agent-workspace.md</code> in the browser and requires JavaScript.
+          You can read the source at <a href="./agent-workspace.md">agent-workspace.md</a>.
         </p>
       </noscript>
     </main>
 
     <script type="module">
-      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
       import { marked } from "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js";
 
       const content = document.getElementById("content");
       const status = document.getElementById("status");
-      let currentSectionId = "";
-      const renderedDiagramSections = new Set();
 
-      const escapeHtml = (value) =>
-        value
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;");
+      const escapeHtml = (v) =>
+        v.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-      const slugify = (value) =>
-        value
-          .toLowerCase()
-          .trim()
-          .replace(/[^\w\s-]/g, "")
-          .replace(/\s+/g, "-")
-          .replace(/-+/g, "-");
-
-      const diagramMermaidBySection = {
-        "why-this-rfc-exists": `
-flowchart LR
-    people[People] --> clients[Chat / CLI / IDE]
-    clients --> exchange[Authorized Exchange]
-    exchange --> state[Optional Realm State]
-    state --> agents[Agent Sidecars + Agents]
-    state --> resources[Files / Context / Resources]
-    state --> audit[Audit Log]
-    control[Control Plane] --> access[Exchange Access Mapping]
-    access --> exchange
-    control --> lifecycle[Create / Pause / Resume / Route]
-    exchange <-->|trusted links| other[Other Realms]
-`,
-        "high-level-exchange-view": `
-flowchart TB
-    human1[Human User] -->|direct or via bridge| exchangeA[Authorized Exchange A]
-    human2[Human Channel] -->|bridge session| exchangeA
-    peer[Peer Exchange / Federated Link] -->|trusted AGSP link| exchangeB[Authorized Exchange B]
-    cp[Control Plane] -->|routing + policy + realm access| exchangeB
-    cp -->|spawn / suspend / resume| arlm[Agent Runtime Lifecycle Manager]
-    exchangeA -->|authorized access| state[Realm State]
-    exchangeB -->|authorized access| state
-    state --> audit[Audit Log]
-    exchangeA -->|delegated text + signed mandate| sidecar1[Sidecar: agent1]
-    exchangeB -->|delegated text + signed mandate| sidecar2[Sidecar: agent2]
-    exchangeA -->|resource_call| ers[Environment / Resource Service]
-    sidecar1 -->|ACP| agent1[Agent Process 1]
-    sidecar2 -->|ACP| agent2[Agent Process 2]
-    arlm -->|spawns + resumes| sidecar1
-    arlm -->|spawns + resumes| sidecar2
-    arlm -->|provisions| ers
-`,
-        "13-position-in-the-agentic-stack": `
-flowchart TB
-    app[Application Layer<br/>Agent business logic and task orchestration]
-    a2a[A2A<br/>Agent-to-agent collaboration]
-    arp[AGRP<br/>Switching Fabric + Realms]
-    agsp[AGSP<br/>JSON-RPC sessions and envelopes]
-    transport[Transport<br/>gRPC / WebSocket / TCP]
-    mcp[MCP<br/>Tool and Data Access]
-    acp[ACP<br/>Editor Integration]
-    app --> a2a --> arp --> agsp --> transport
-    mcp -. orthogonal .-> arp
-    acp -. orthogonal .-> arp
-`,
-        "32-realm-topology-single-realm": `
-flowchart TB
-    cp[Control Plane] -->|manage lifecycle| exchange[Exchange]
-    cli[CLI] -->|AGSP| exchange
-    telegram[Telegram Bridge] -->|AGSP| exchange
-    filebridge[File Mount Bridge] -->|AGSP| exchange
-    filebridge --> fuse[FUSE mount at ~/relay/ns/proj]
-    exchange -->|AGSP via attached sidecar| sidecar[Sidecar: claude]
-    sidecar -->|ACP| agent[Agent: claude]
-`,
-        "33-multi-exchange-topology": `
-flowchart TB
-    cp[Control Plane<br/>Raft cluster]
-    exchangea[Exchange A<br/>ws: myns/myproject]
-    exchangeb[Exchange B<br/>ws: myns/infra]
-    ag1[ag1]
-    ag2[ag2]
-    ag3[ag3]
-    ag4[ag4]
-    cp -->|push routing tables| exchangea
-    cp -->|push routing tables| exchangeb
-    exchangea --> ag1
-    exchangea --> ag2
-    exchangeb --> ag3
-    exchangeb --> ag4
-    ag2 --- ag3
-`,
-        "42-connection-lifecycle": `
-sequenceDiagram
-    participant P as Participant
-    participant R as Exchange
-    P->>R: agsp/initialize<br/>protocol_version, role,<br/>participant_info, capabilities
-    R-->>P: initialize_response<br/>exchange_info, capabilities,<br/>members, routing_snapshot
-    P->>R: agsp/ready
-    Note over P,R: Bidirectional messaging
-`,
-        "49-approval-flow": `
-sequenceDiagram
-    participant Requester
-    participant Exchange
-    participant Humans
-    Requester->>Exchange: operation request
-    Exchange->>Humans: approval_request<br/>action=mutating resource access, risk=high
-    Humans-->>Exchange: approval_response<br/>approved=true, approver=user1
-    Exchange-->>Requester: routed result or policy decision
-`,
-        "51-state-machine": `
-stateDiagram-v2
-    [*] --> Creating: create
-    Creating --> Running: environment ready / agent session established
-    Running --> Suspended: suspend
-    Suspended --> Running: resume
-    Running --> Terminated: terminate
-`,
-        "92-message-forwarding-flow": `
-sequenceDiagram
-    participant Claude as claude
-    participant ExchangeA as Exchange A
-    participant ExchangeB as Exchange B
-    participant Infra as infra-agent sidecar
-    Claude->>ExchangeA: to agrp://myns/infra/infra-agent
-    ExchangeA->>ExchangeA: lookup local routing table
-    ExchangeA->>ExchangeB: forward AGSP envelope<br/>source_realm=myns/myproject<br/>destination_realm=myns/infra<br/>exchange_src=exchange-7a3f ttl=7
-    ExchangeB->>Infra: deliver local AGSP message
-`,
-        "101-intra-organization-federation": `
-flowchart LR
-    subgraph A[Cluster: example-mesh]
-        cpa[CP-A]
-        exchangea1[Exchange A1]
-        a1[ag1]
-        a2[ag2]
-        cpa --> exchangea1
-        exchangea1 --> a1
-        exchangea1 --> a2
-    end
-    subgraph B[Cluster: personal]
-        cpb[CP-B]
-        exchangeb1[Exchange B1]
-        exchangeb2[Exchange B2]
-        b1[ag3]
-        b2[ag4]
-        b3[ag5]
-        cpb --> exchangeb1
-        cpb --> exchangeb2
-        exchangeb1 --> b1
-        exchangeb2 --> b2
-        exchangeb2 --> b3
-    end
-    exchangea1 <-->|AGSP| exchangeb1
-`,
-        "102-cross-organization-federation-via-a2a": `
-sequenceDiagram
-    participant Client as External A2A Client
-    participant Boundary as Boundary Exchange
-    participant Mesh as Internal AGRP Mesh
-    Client->>Boundary: GET /.well-known/agent.json
-    Boundary-->>Client: proxied Agent Card
-    Client->>Boundary: POST /tasks
-    Boundary->>Mesh: wrap in AGSP envelope and route internally
-    Mesh-->>Boundary: internal AGSP response
-    Boundary-->>Client: proxied A2A response
-`,
-      };
+      const slugify = (v) =>
+        v.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
 
       marked.use({
         gfm: true,
@@ -451,71 +162,30 @@ sequenceDiagram
           heading(token) {
             const html = this.parser.parseInline(token.tokens);
             const id = slugify(token.text ?? "");
-            currentSectionId = id;
             return `<h${token.depth} id="${id}">${html}</h${token.depth}>`;
           },
           code(token) {
-            const language = (token.lang ?? "").trim();
+            const lang = (token.lang ?? "").trim();
             const code = token.text ?? "";
-
-            if (language === "mermaid") {
-              return `<pre class="mermaid">${escapeHtml(code)}</pre>`;
-            }
-
-            const diagram =
-              !language &&
-              !renderedDiagramSections.has(currentSectionId) &&
-              diagramMermaidBySection[currentSectionId];
-
-            if (diagram) {
-              renderedDiagramSections.add(currentSectionId);
-              return `<pre class="mermaid">${escapeHtml(diagram)}</pre>`;
-            }
-
-            const className = language ? ` class="language-${escapeHtml(language)}"` : "";
-            return `<pre><code${className}>${escapeHtml(code)}</code></pre>`;
+            const cls = lang ? ` class="language-${escapeHtml(lang)}"` : "";
+            return `<pre><code${cls}>${escapeHtml(code)}</code></pre>`;
           },
         },
       });
 
       try {
-        const response = await fetch("./agrp-rfc.md", { cache: "no-store" });
-
-        if (!response.ok) {
-          throw new Error(`Unable to load agrp-rfc.md (${response.status})`);
-        }
-
-        const markdown = await response.text();
-        content.innerHTML = marked.parse(markdown);
-
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "loose",
-          theme: "base",
-          themeVariables: {
-            fontFamily: '"SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", monospace',
-            primaryColor: "#ffffff",
-            primaryTextColor: "#111111",
-            primaryBorderColor: "#111111",
-            secondaryColor: "#ffffff",
-            tertiaryColor: "#ffffff",
-            lineColor: "#111111",
-            clusterBkg: "#ffffff",
-            clusterBorder: "#111111",
-          },
-        });
-
-        await mermaid.run({ querySelector: ".mermaid" });
-        status.textContent = "Rendered from agrp-rfc.md";
-      } catch (error) {
-        status.textContent = "Unable to render agrp-rfc.md";
+        const res = await fetch("./agent-workspace.md", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load (${res.status})`);
+        content.innerHTML = marked.parse(await res.text());
+        status.textContent = "Rendered from agent-workspace.md";
+      } catch (err) {
+        status.textContent = "Unable to render";
         content.innerHTML = `
           <div class="error">
-            <p>Failed to render the RFC in the browser.</p>
-            <p><a href="./agrp-rfc.md">Open the markdown source</a>.</p>
-            <p><code>${String(error.message ?? error)}</code></p>
-          </div>
-        `;
+            <p>Failed to render the spec.</p>
+            <p><a href="./agent-workspace.md">Open the markdown source</a>.</p>
+            <p><code>${String(err.message ?? err)}</code></p>
+          </div>`;
       }
     </script>
   </body>

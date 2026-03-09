@@ -1,22 +1,22 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-This repository is a documentation-first RFC project. Keep the protocol source in `agrp-rfc.md`, the browser-rendered presentation in `index.html`, and the high-level overview in `README.md`. Root-only assets are intentional: `.nojekyll` supports GitHub Pages, and `LICENSE` covers published content.
+## Project Structure
+This repository contains the Agentic Workspace protocol spec and a reference implementation.
 
-## Build, Test, and Development Commands
-There is no build pipeline or package manifest in this repo. Use a lightweight local server so `index.html` can fetch `agrp-rfc.md` correctly:
+- `agent-workspace.md` — protocol spec (draft)
+- `index.html` — browser-rendered spec page
+- `reference-impl/` — reference implementation (bun + docker)
+  - `wsmanager.ts` — workspace manager, REST API, launches docker containers
+  - `wmlet.ts` — runs inside container, launches claude-code, exposes ACP
+  - `Dockerfile` — workspace container image (bun + claude-code + wmlet)
 
-- `cd agrp-rfc && python3 -m http.server 8000` serves the RFC site locally.
-- Open `http://localhost:8000` and confirm the page renders the markdown source.
-- `git diff -- agrp-rfc.md index.html README.md` is the fastest review pass before committing.
+## Development
+- `bun --hot reference-impl/dev-server.ts` to preview the spec page locally
+- `cd reference-impl && bun run dev:manager` to run workspace manager
+- `cd reference-impl && docker build -t agrp-wmlet .` to build workspace image
 
-Do not open `index.html` via `file://`; the page uses `fetch("./agrp-rfc.md")` and will fail without HTTP.
+## Coding Style
+Use concise RFC prose for the spec. Reference implementation uses Bun + TypeScript.
 
-## Coding Style & Naming Conventions
-Use concise RFC prose, sentence-case headings, and fenced code blocks for protocol examples. Follow the existing two-space indentation in `index.html`. Keep filenames descriptive and stable; this repo currently uses root-level names such as `agrp-rfc.md` and `index.html` rather than nested app directories.
-
-## Testing Guidelines
-No automated test suite is configured today. Validate changes manually by loading the local site, checking that the status line reports `Rendered from agrp-rfc.md`, and confirming Mermaid diagrams and feedback links still work. For content-only edits, review the rendered HTML and the raw markdown.
-
-## Commit & Pull Request Guidelines
-Match the current Git history: short, imperative commit subjects with a clear scope, for example `Add external standards references to AGRP RFC` or `Fix Pages diagram mapping for RFC intro`. Keep pull requests focused on one logical change, summarize the affected sections, and include screenshots when `index.html` styling or rendering changes. Link the related GitHub issue or discussion when the change responds to public feedback.
+## Commit Guidelines
+Short, imperative commit subjects. Keep pull requests focused on one logical change.
