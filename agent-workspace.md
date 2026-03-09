@@ -70,9 +70,11 @@ An hour in, she hits a design question — how to handle idempotency for partial
 ws invite payments-api carol@acme.com
 ```
 
-Carol joins from her IDE, reads through the agent's scaffolded code and Alice's spec, and proposes an elegant approach they both missed — an event-sourced model that handles partial refunds naturally. The agent picks it up, refactors the code, Alice and Carol review together. Three participants — two humans, one agent — each contributing what they do best: the agent writes fast and knows the codebase, Alice brings architecture vision, Carol brings domain expertise.
+Carol joins from her IDE, reads through the agent's scaffolded code and Alice's spec, and proposes an elegant approach they both missed — an event-sourced model that handles partial refunds naturally. The Claude agent picks it up and starts refactoring the service layer.
 
-By end of day, the API is designed, implemented, and tested. Alice commits the workspace. Anyone onboarding to this service later can clone it and see not just the code, but the entire creative process — why decisions were made, what alternatives were considered, and how the design evolved.
+Meanwhile, Alice spins up another topic — `write-tests` — with a Codex agent. Codex reads the evolving spec and the code Claude is producing, and starts writing integration tests in parallel. Two agents, two humans, four topics — all working on the same codebase simultaneously. Claude refactors, Codex tests, Alice reviews architecture, Carol validates business logic.
+
+By end of day, the API is designed, implemented, and tested. Alice commits the workspace. Anyone onboarding to this service later can clone it and see not just the code, but the entire creative process — why decisions were made, what alternatives were considered, and how the design evolved through the collaboration of humans and agents.
 
 This is what a multiplayer agent environment looks like.
 
