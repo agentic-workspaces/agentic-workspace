@@ -24,11 +24,10 @@
 - [8. Audit Log](#8-audit-log)
 - [9. Exchange-to-Exchange Communication](#9-exchange-to-exchange-communication)
 - [10. Mesh of Meshes (Federation)](#10-mesh-of-meshes-federation)
-- [11. Relationship to Kubernetes](#11-relationship-to-kubernetes)
-- [12. Relationship to Adjacent Protocols](#12-relationship-to-adjacent-protocols)
-- [13. Open Questions](#13-open-questions)
-- [14. Out of Scope](#14-out-of-scope)
-- [15. References](#15-references)
+- [11. Relationship to Adjacent Protocols](#11-relationship-to-adjacent-protocols)
+- [12. Open Questions](#12-open-questions)
+- [13. Out of Scope](#13-out-of-scope)
+- [14. References](#14-references)
 - [Contributors](#contributors)
 
 ---
@@ -156,13 +155,11 @@ An agent is a logical autonomous worker addressed by name within the mesh; resol
 
 In AGRP v1, every agent participates through a **1:1 attached sidecar** that connects to the Exchange, speaks ACP to its parent agent, and emits AGSP messages on the agent's behalf. The sidecar is an implementation detail of the agent runtime and is not exposed to users as a separate participant identity.
 
-An agent is instantiated with a **harness** — a configuration bundle specifying the model, provider, tools, skills, and behavioral constraints. The harness is opaque to the protocol; AGRP treats it as metadata stored in the Control Plane and passed to the Agent Runtime Lifecycle Manager at spawn time.
-
 AGRP reaches the agent through ACP on the attached sidecar. MCP and A2A may still be used by the agent for tool access and collaboration, but they are orthogonal to the Exchange-facing AGRP/AGSP path.
 
 ### 2.1.1 Agent Sidecar
 
-An agent sidecar is a child transport adapter managed alongside exactly one agent by the ARLM or realm runtime. The sidecar:
+An agent sidecar is a child transport adapter managed alongside exactly one agent under Control Plane and ARLM lifecycle control. The sidecar:
 
 - Terminates AGSP on behalf of its parent agent
 - Translates between AGSP and ACP
@@ -173,7 +170,7 @@ Agents do not speak AGSP directly in v1. They interact with the mesh only throug
 
 ### 2.2 Exchange
 
-An Exchange is a process or pod that acts as a **switching node** in the mesh. It is the fundamental routing unit of the AGRP fabric. An Exchange:
+An Exchange is a **switching node** in the mesh. It is the fundamental routing unit of the AGRP fabric. An Exchange:
 
 - Accepts AGSP connections from agent sidecars, humans, AGSP bridges, and peer Exchanges
 - Maintains a local routing table pushed by the Control Plane
@@ -189,8 +186,8 @@ This last property is the key architectural insight: **Exchange-to-Exchange comm
 A Realm is AGRP's **managed, stateful collaboration unit**. It is optional: an Exchange may run without any Realm, in which case it behaves as a stateless relay or chat surface without protocol-required history persistence. A Realm bundles:
 
 - **Shared realm state** — mutable state and policy owned by the Realm
-- **An Environment Resource Service** — an abstract provider of context, environment resources, and realm information
-- **Agents** — one or more, each with a harness and model configuration
+- **An Environment/Resource interface** — the realm-scoped resource surface exposed through Exchange-mediated operations when enabled
+- **Agents** — one or more logical workers reached through attached sidecars
 - **Members** — humans with roles (owner, admin, member) and permissions
 - **Channels** — bindings to external systems (Telegram threads, Slack channels, etc.) via AGSP bridges
 - **Audit log** — append-only record of all messages, approvals, and operations
@@ -198,8 +195,6 @@ A Realm is AGRP's **managed, stateful collaboration unit**. It is optional: an E
 A Realm has a hierarchical identifier: `{namespace}/{name}` (e.g., `myns/myproject`). Realms are managed by the Control Plane and have a defined lifecycle: `creating → running → suspended → running → terminated`.
 
 The relationship between Realm and Exchange is strict but indirect: a Realm owns identity, mutable state, and lifecycle, while Exchanges are separate switching nodes that may be granted access to that Realm by the Control Plane. An Exchange handles switching and policy enforcement for the traffic that enters through it, but it does not define the Realm and is not declared by the Realm object itself. The Control Plane may grant multiple Exchanges access to the same Realm for availability, locality, or load distribution. Multiple Realms may run on the same physical infrastructure but their state and policy boundaries remain logically isolated.
-
-From an implementation point of view, a Realm may be realized as a stateful runtime unit, for example a Kubernetes StatefulSet pod with attached persistent storage such as a PVC. This RFC does not require Kubernetes or PVCs, but it does require the same semantics: the Realm owns mutable state together with a controlled interface for reading and mutating that state.
 
 Realm state is not modified by arbitrary participant traffic. In base AGRP, Realm state changes happen only through two paths:
 
@@ -238,45 +233,15 @@ The Control Plane is **not** in the data path. It configures routing state, but 
 
 ### 2.6 Agent Runtime Lifecycle Manager (ARLM)
 
-An abstraction over execution environments (Kubernetes, native-fork, serverless, etc.) that the Control Plane uses to:
+An abstraction that the Control Plane uses to:
 
-- Spawn and terminate agents and their attached sidecars (with harness configuration)
+- Spawn and terminate agents and their attached sidecars
 - Provision and destroy environment resources
 - Suspend and resume environment/resource handles
 
 The ARLM is pluggable — the protocol is agnostic to the underlying runtime. The ARLM connects to Exchanges as an AGSP participant with role `arlm`.
 
-Illustrative YAML example of how an ARLM could configure a Claude-based ACP agent for spawn:
-
-```yaml
-runtime_profiles:
-  claude-acp:
-    agent:
-      kind: claude
-      harness: claude
-      launch:
-        command: /opt/agents/claude-acp-launcher
-        args: []
-        env:
-          WORKDIR: /var/lib/agrp/realms/myns-myproject
-      acp:
-        transport: stdio
-        protocol: acp
-    sidecar:
-      join:
-        protocol: agsp
-        exchange_ref: exchange-7a3f
-        endpoint: ws://10.0.0.1:7000/agsp
-        role: agent
-        participant_name: claude
-      mandate_verification:
-        required: true
-    wiring:
-      agent_channel: acp
-      exchange_channel: agsp
-```
-
-This example is non-normative. The sidecar joins the **Exchange** identified by `exchange_ref` and `endpoint`. Realm association, when present, is assigned by the Exchange from Control Plane state rather than supplied by the participant during join. The exact Claude launcher path, arguments, environment variables, and Exchange endpoint discovery mechanism are implementation-specific; AGRP only requires that the ARLM start the agent and attached sidecar and wire **ACP** between sidecar and agent and **AGSP** between sidecar and Exchange.
+AGRP does not standardize agent launch or runtime-internal configuration details. The only protocol-visible requirement is that the ARLM arrange an attached sidecar that speaks **ACP** toward its agent and **AGSP** toward an Exchange selected by Control Plane state.
 
 ---
 
@@ -290,7 +255,7 @@ AGRP defines three planes:
 |---|---|---|
 | **Orchestration Plane** | Control Plane (Raft) | k8s API Server + etcd |
 | **Switching Fabric** | Exchanges + AGSP relay + Bridges | kube-proxy + CNI |
-| **Runtime Plane** | ARLM (k8s, fork, etc.) + Agents + Sidecars + Environment Resources | kubelet + container runtime |
+| **Runtime Plane** | ARLM + Agents + Sidecars + Environment Resources | kubelet + container runtime |
 
 ### 3.2 Realm Topology (Single Realm)
 
@@ -334,14 +299,14 @@ flowchart LR
         cp[Control Plane]
         exchange[Exchange]
         realm[Optional Realm State]
-        cp -->|spawn / configure| arlm[ARLM]
+        cp -->|lifecycle command| arlm[ARLM]
         cp -->|routing / realm access| exchange
         exchange <-->|authorized access| realm
     end
 
     subgraph runtime["Agent runtime"]
         sidecar[Attached Sidecar]
-        agent[Agent Process]
+        agent[Agent]
         sidecar <-->|ACP| agent
     end
 
@@ -357,12 +322,12 @@ sequenceDiagram
     participant ARLM as ARLM
     participant EX as Exchange
     participant SC as Attached Sidecar
-    participant AG as Agent Process
+    participant AG as Agent
     participant HB as Human or Bridge
 
     CP->>ARLM: AGRP spawn/configure agent + sidecar
     CP->>EX: AGRP routing / realm access
-    ARLM->>AG: start agent process
+    ARLM->>AG: start agent
     ARLM->>SC: start attached sidecar
     SC->>AG: ACP initialize / attach
     SC->>EX: AGSP initialize(role=agent)
@@ -612,7 +577,7 @@ For cross-realm operations in v1, approval is governed by the **source realm** p
 
 ## 5. Realm Lifecycle
 
-Realm lifecycle describes the runtime envelope around a stable stateful unit. Realm identity and persistent mutable state may outlive any particular Exchange process, agent process, or sidecar session. Lifecycle transitions are commanded by the Control Plane; participant-originated changes flow only through a running Exchange that the Control Plane has configured for Realm access and only when authorized by realm policy.
+Realm lifecycle describes the control-plane lifecycle around a stable stateful unit. Realm identity and mutable state may outlive any particular Exchange attachment, agent session, or sidecar session. Lifecycle transitions are commanded by the Control Plane; participant-originated changes flow only through a running Exchange that the Control Plane has configured for Realm access and only when authorized by realm policy.
 
 ### 5.1 State Machine
 
@@ -645,27 +610,27 @@ Realm lifecycle describes the runtime envelope around a stable stateful unit. Re
 
 State semantics:
 
-- **Creating** — the Control Plane allocates realm identity, provisions or attaches persistent realm state, and asks the ARLM to start the runtime components. The Realm does not yet admit normal participant traffic.
+- **Creating** — the Control Plane allocates realm identity, makes realm state and realm-scoped resource surfaces available, and asks the ARLM to start the runtime components. The Realm does not yet admit normal participant traffic.
 - **Running** — at least one Exchange with Control-Plane-granted Realm access is live, agents and sidecars may be connected, and authorized Exchange-mediated operations may mutate realm state according to role, mandate, and approval policy. Control Plane commands may still reconfigure or suspend the Realm.
-- **Suspended** — persistent realm state is retained, but live compute is released. No Exchange retains active Realm access, channel bindings are inactive, and participant-originated mutations do not run. Only the Control Plane may resume, reconfigure, or terminate the Realm.
+- **Suspended** — retained realm state remains available to the deployment, but live participant-facing runtime is removed. No Exchange retains active Realm access, channel bindings are inactive, and participant-originated mutations do not run. Only the Control Plane may resume, reconfigure, or terminate the Realm.
 - **Terminated** — the Realm is no longer routable. Runtime components are gone, and the deployment either deletes or archives persistent state according to its retention policy.
 
 ### 5.2 Create
 
-Creating a realm requires an identity, an initial membership set, an agent harness/model selection, and any initial environment or context inputs required by the deployment.
+Creating a realm requires an identity, an initial membership set, an initial agent set, and any initial realm-scoped resource or context inputs required by the deployment.
 
 The Control Plane:
 
 1. Allocates realm identity `myns/myproject`
-2. Instructs the ARLM to provision or attach persistent realm state, environment resources, and context handles
+2. Instructs the deployment-specific runtime layer to make realm state and realm-scoped resource surfaces available
 3. Spawns one or more Exchanges and grants them Realm access
-4. Instructs the ARLM to spawn the agent with the specified harness and model, together with its attached sidecar
+4. Instructs the ARLM to spawn the agent together with its attached sidecar
 5. Registers the creator as `owner`
 6. Updates routing tables
 
 ### 5.3 Suspend and Resume
 
-Suspending a realm preserves the control-plane snapshot and the realm's persistent state and environment/resource handles but releases live compute resources. All Exchanges with access to that Realm are terminated or have their Realm access revoked, and agent processes are stopped. In a StatefulSet-style deployment, persistent storage remains attached while live processes are released.
+Suspending a realm preserves the control-plane snapshot and any retained realm state while removing live participant-facing runtime. All Exchanges with access to that Realm are terminated or have their Realm access revoked, and agent sessions are stopped.
 
 While suspended, the Realm does not accept normal participant traffic and Exchange-mediated mutation paths are inactive because no Exchange is serving that Realm.
 
@@ -690,7 +655,7 @@ A realm can have multiple channels simultaneously. Each channel binding maps a s
 
 ## 6. Control Plane State Model
 
-The Control Plane maintains the following state (Raft-replicated). This model captures the Control Plane's authoritative metadata view, not the internal byte layout of realm-local mutable state. Deployment-specific realm state may live in persistent storage attached to the realm runtime, but AGRP constrains how it changes: via Control Plane commands or via Exchange-mediated authorized operations only.
+The Control Plane maintains the following state (Raft-replicated). This model captures the Control Plane's authoritative metadata view, not the internal layout of realm-local mutable state. AGRP constrains how realm state changes: via Control Plane commands or via Exchange-mediated authorized operations only.
 
 The first example below shows a **single Realm served through multiple Exchanges**. The Realm does not list the Exchanges itself; instead, the Control Plane maintains a separate Realm-access mapping that authorizes those Exchanges to serve the same realm state and policy boundary.
 
@@ -711,10 +676,7 @@ realms:
         - { kind: context, ref: resource://myns/myproject/context }
     agents:
       claude:
-        harness: claude
-        model: opus-4.5
         status: active
-        capabilities: [code, test, deploy]
         transport:
           mode: sidecar
           protocol: acp
@@ -849,23 +811,7 @@ When an Exchange serves a Realm with audit persistence enabled, it writes messag
 | `payload_hash` | Hash of payload (or full payload, configurable) |
 | `approval` | Approver identity and decision, if applicable |
 
-Approval decisions, including denied actions, are logged as first-class events. An implementation may expose the audit log through a CLI, API, or UI. An illustrative excerpt:
-
-```
-14:01  user1      "review the current architecture"
-14:02  claude     "summarized the topology and open questions"
-14:05  user1      "prepare an update for the validation rules"
-14:09  claude     "draft update ready for review"
-14:15  user2      "connect a Telegram channel to this realm"
-14:16  system     session_event telegram-bridge-01 joined
-14:30  exchange       approval_request "mutating resource access"
-14:31  user2      approval_response denied
-14:31  exchange       approval_denied "mutating resource access"
-15:10  user1      "delegate follow-up work to infra-agent"
-15:11  exchange       delivery_failure route unavailable
-```
-
-The audit log persists across suspend and resume for human review, debugging, and tooling. It is not the protocol-defined recovery mechanism for agent state in v1.
+Approval decisions, including denied actions, are logged as first-class events. An implementation may expose the audit log through a CLI, API, or UI. The audit log persists across suspend and resume for human review, debugging, and tooling. It is not the protocol-defined recovery mechanism for agent state in v1.
 
 ---
 
@@ -951,40 +897,20 @@ This section is informative only. It does not define a normative interoperabilit
 
 ---
 
-## 11. Relationship to Kubernetes
-
-AGRP is intentionally analogous to Kubernetes but for agent communication rather than container orchestration:
-
-| Kubernetes | AGRP | Key Difference |
-|---|---|---|
-| Namespace | Namespace | Identical concept |
-| Deployment | Realm | Realm includes environment, members, channels |
-| Pod | Agent | Agent has session state, harness, model config |
-| Node | Exchange | Exchange is an active message forwarder, not a passive host |
-| etcd (Raft) | CP state (Raft) | Identical model |
-| kube-proxy | Exchange routing table | Exchange routes AGSP envelopes, not TCP packets |
-| CNI | Inter-Exchange AGSP | Fabric is semantic (JSON-RPC), not network-layer |
-| kubelet | ARLM | ARLM is pluggable (k8s, fork, serverless) |
-| NetworkPolicy | Approval policy | Policy enforced per-realm with human-in-the-loop |
-
-The critical difference: Kubernetes delegates networking to CNI and treats it as transparent infrastructure. AGRP treats the **communication fabric as the primary primitive**. The network is not transparent — it is the product.
-
----
-
-## 12. Relationship to Adjacent Protocols
+## 11. Relationship to Adjacent Protocols
 
 AGRP is designed to be **compatible with and complementary to** these protocols:
 
 - **MCP:** Agents within an AGRP realm freely use MCP to access tools and data. The Exchange does not interfere with MCP connections. An MCP server can be co-located with the realm environment for shared tool access.
 - **A2A:** Boundary Exchanges expose A2A-compatible endpoints for interoperability. A2A messages between mesh-hosted agents are transparently relayed through the AGRP fabric.
-- **AGENTS.md:** Agent configuration (including AGENTS.md conventions) is orthogonal to AGRP. The ARLM may use AGENTS.md to configure spawned agents.
-- **ACP:** Agents that speak ACP (e.g., Claude Code, Gemini CLI) can be spawned inside a realm and connected to an editor via an ACP bridge. The bridge translates ACP JSON-RPC into AGSP sessions.
+- **AGENTS.md:** Agent configuration documents are orthogonal to AGRP. AGRP neither requires nor interprets them.
+- **ACP:** ACP is the local protocol between an attached sidecar and the agent it represents. AGRP does not standardize how ACP-speaking agents are launched, configured, or otherwise implemented.
 
 AGRP does not seek to replace any of these protocols. It provides the managed infrastructure mesh beneath them.
 
 ---
 
-## 13. Open Questions
+## 12. Open Questions
 
 The following topics require further specification:
 
@@ -998,7 +924,7 @@ The following topics require further specification:
 
 ---
 
-## 14. Out of Scope
+## 13. Out of Scope
 
 The following are explicitly **not** part of this RFC:
 
@@ -1006,7 +932,7 @@ The following are explicitly **not** part of this RFC:
 - Agent-to-tool integration (use MCP)
 - Editor-to-agent integration (use ACP)
 - Specific AGSP message payload formats beyond the envelope
-- Agent harness specification (opaque to the protocol)
+- Agent runtime specification and launcher details
 - Live agent session migration between Exchanges
 - Protocol-standardized observability and tracing semantics
 - UI/UX for approval buttons, message rendering, or thread display
@@ -1014,7 +940,7 @@ The following are explicitly **not** part of this RFC:
 
 ---
 
-## 15. References
+## 14. References
 
 The following external protocols, interfaces, and standards are referenced in this document:
 
