@@ -243,6 +243,27 @@ The ARLM is pluggable — the protocol is agnostic to the underlying runtime. Th
 
 AGRP does not standardize agent launch or runtime-internal configuration details. The only protocol-visible requirement is that the ARLM arrange an attached sidecar that speaks **ACP** toward its agent and **AGSP** toward an Exchange selected by Control Plane state.
 
+Illustrative local ARLM configuration example:
+
+```yaml
+runtime_profiles:
+  default-acp-agent:
+    agent:
+      launch:
+        command: /opt/agent-runtime
+        args: ["run"]
+    sidecar:
+      join:
+        protocol: agsp
+        endpoint: ws://exchange.internal/agsp
+        role: agent
+        participant_name: worker
+      mandate_verification:
+        required: true
+```
+
+This example is non-normative and local to the ARLM. It is not a Control Plane schema. AGRP only cares that the sidecar joins an Exchange over **AGSP**, reaches its parent agent over **ACP**, and enforces Exchange-issued mandates on delegated requests.
+
 ---
 
 ## 3. Architecture
