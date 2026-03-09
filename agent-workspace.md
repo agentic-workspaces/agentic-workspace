@@ -24,7 +24,39 @@ This protocol defines that environment.
 
 ---
 
-## 2. What is a Workspace
+## 2. A Day with Workspaces
+
+Imagine all of this already exists. What does a typical day look like?
+
+It's Monday morning. Alice is the on-call engineer for the payments team at Acme.
+
+**9:02 AM** — A PagerDuty alert fires: payment timeouts are spiking. Alice opens her terminal and creates a workspace:
+
+```
+ws create payments-outage debug-timeout investigate-logs
+```
+
+A workspace spins up with the payments repo mounted at `/code`, two topics ready — `debug-timeout` with a Claude agent, and `investigate-logs` with another. Both agents share the same codebase but work independently.
+
+**9:04 AM** — Alice connects to `debug-timeout` and types: "Payment API response times jumped from 200ms to 5s in the last 10 minutes. Find the root cause." The agent starts reading code, checking recent commits, and running queries. Meanwhile, the agent in `investigate-logs` is already analyzing log patterns — Alice had pre-configured it with a system prompt to look for anomalies.
+
+**9:12 AM** — Bob, another engineer, sees the incident channel and joins the same workspace from his IDE. He opens `investigate-logs` to see what that agent found, then creates a new topic: "Bob here, check if the connection pool config changed recently." A fresh agent picks this up.
+
+**9:18 AM** — The agent in `debug-timeout` reports: "Found it. PR #847 merged Friday changed the connection pool timeout from 30s to 3s. Under load, connections are being dropped before queries complete." Alice reviews the evidence, then types: "Prepare a revert PR."
+
+**9:20 AM** — The agent needs to push to GitHub. Alice's workspace has GitHub connected with a policy: creating PRs is allowed, but pushing requires approval. The agent creates the PR and Alice approves the push with one click.
+
+**9:25 AM** — CI passes. Alice merges. The timeout spike starts recovering.
+
+**9:30 AM** — Alice commits the workspace state — a snapshot of the full conversation, agent actions, and files. Now anyone investigating the incident later can clone this workspace and see exactly what happened, what the agents found, and why decisions were made.
+
+**Later** — The incident postmortem links to the workspace. New team members can clone it as a training exercise. The workspace identity `payments-outage.acme@relay.example.com` is in the audit log, showing every tool call, every approval, every action taken.
+
+This is what a multiplayer agent environment looks like.
+
+---
+
+## 3. What is a Workspace
 
 A workspace is an environment for humans and agents to collaborate on shared resources — code, documents, data, or any other resources relevant to the task at hand.
 
@@ -40,7 +72,7 @@ The entire workspace state — resources, conversation, configuration — is ver
 
 ---
 
-## 3. Workspace Manager
+## 4. Workspace Manager
 
 Workspace Manager is a service that manages workspace lifecycle — creating, listing, connecting, suspending, and terminating workspaces. It exposes a REST API that clients use before establishing an ACP connection.
 
@@ -151,7 +183,7 @@ agents:
 
 ---
 
-## 4. Tools
+## 5. Tools
 
 Tools are first-class resources in a workspace. A tool represents a capability — reading email, creating a pull request, querying a database, executing shell commands — together with the credentials to access it and the policy governing who can use it and how.
 
@@ -227,7 +259,7 @@ All tool calls go through the workspace runtime, which enforces policy, checks g
 
 ---
 
-## 5. Topics
+## 6. Topics
 
 A workspace contains one or more **topics** — named conversation threads where agents work on specific tasks. Topics can be created together with the workspace or added later.
 
