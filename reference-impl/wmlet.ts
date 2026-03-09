@@ -1,8 +1,10 @@
 /**
  * wmlet — workspace agent inside a container.
  *
- * Spawns claude-agent-acp, communicates via ACP (JSON-RPC over stdio).
- * Exposes WebSocket endpoint for external clients to interact with claude.
+ * Manages topics — named conversation threads, each backed by a separate
+ * claude-agent-acp process with its own ACP session.
+ *
+ * REST API for topic management, WebSocket for ACP communication.
  */
 
 import { spawn, type ChildProcess } from "node:child_process";
@@ -25,17 +27,18 @@ const BIN_DIR = `${process.cwd()}/node_modules/.bin`;
 
 // --- State ---
 
-interface Session {
-  id: string;
+interface Topic {
+  name: string;
   connection: ClientSideConnection;
   process: ChildProcess;
   sessionId: string;
   clients: Set<string>;
   log: Array<{ type: string; data: any; ts: string }>;
   busy: boolean;
+  createdAt: string;
 }
 
-const sessions = new Map<string, Session>();
+const topics = new Map<string, Topic>();
 const wsClients = new Map<string, any>();
 
 // --- ACP ---
@@ -56,22 +59,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-function broadcastToSession(sessionKey: string, msg: any) {
-  const session = sessions.get(sessionKey);
-  if (!session) return;
+function broadcastToTopic(topicName: string, msg: any) {
+  const topic = topics.get(topicName);
+  if (!topic) return;
   const data = JSON.stringify(msg);
-  for (const clientId of session.clients) {
+  for (const clientId of topic.clients) {
     const ws = wsClients.get(clientId);
     if (ws) ws.send(data);
   }
 }
 
-async function createSession(id: string): Promise<Session> {
-  console.log(`[wmlet] creating ACP session: ${id}`);
+async function createTopic(name: string): Promise<Topic> {
+  console.log(`[wmlet] creating topic: ${name}`);
 
   const command = `${BIN_DIR}/claude-agent-acp`;
-  console.log(`[wmlet] spawning: ${command}`);
-
   const proc = spawn(command, [], {
     stdio: ["pipe", "pipe", "pipe"],
     cwd: WORKSPACE_DIR,
@@ -80,7 +81,7 @@ async function createSession(id: string): Promise<Session> {
 
   proc.stderr?.on("data", (chunk: Buffer) => {
     const line = chunk.toString().trim();
-    if (line) console.error(`[claude stderr] ${line}`);
+    if (line) console.error(`[${name}:stderr] ${line}`);
   });
 
   if (!proc.stdin || !proc.stdout) {
@@ -91,28 +92,25 @@ async function createSession(id: string): Promise<Session> {
   const output = Readable.toWeb(proc.stdout) as unknown as ReadableStream<Uint8Array>;
   const stream = ndJsonStream(input, output);
 
-  // Create client handler that broadcasts to WebSocket clients
   const clientImpl: Client = {
     async sessionUpdate(params: SessionNotification): Promise<void> {
       const update = params.update as any;
       const updateType = update.sessionUpdate;
       if (!updateType) return;
 
-      const logEntry = { type: updateType, data: update, ts: new Date().toISOString() };
-
-      const session = sessions.get(id);
-      if (session) session.log.push(logEntry);
+      const topic = topics.get(name);
+      if (topic) {
+        topic.log.push({ type: updateType, data: update, ts: new Date().toISOString() });
+      }
 
       switch (updateType) {
         case "agent_message_chunk": {
           const text = update.content?.text;
-          if (text) {
-            broadcastToSession(id, { type: "text", data: text });
-          }
+          if (text) broadcastToTopic(name, { type: "text", data: text });
           break;
         }
         case "tool_call": {
-          broadcastToSession(id, {
+          broadcastToTopic(name, {
             type: "tool_call",
             toolCallId: update.toolCallId,
             title: update.title,
@@ -122,7 +120,7 @@ async function createSession(id: string): Promise<Session> {
           break;
         }
         case "tool_call_update": {
-          broadcastToSession(id, {
+          broadcastToTopic(name, {
             type: "tool_update",
             toolCallId: update.toolCallId,
             status: update.status,
@@ -136,16 +134,13 @@ async function createSession(id: string): Promise<Session> {
     async requestPermission(
       params: RequestPermissionRequest
     ): Promise<RequestPermissionResponse> {
-      console.log(`[wmlet] permission request:`, JSON.stringify(params));
-      // Auto-approve for now
+      console.log(`[${name}] permission request:`, JSON.stringify(params));
       return { approved: true };
     },
   };
 
   const connection = new ClientSideConnection(() => clientImpl, stream);
 
-  // Initialize
-  console.log(`[wmlet] initializing ACP...`);
   await withTimeout(
     connection.initialize({
       protocolVersion: PROTOCOL_VERSION,
@@ -156,146 +151,219 @@ async function createSession(id: string): Promise<Session> {
       clientInfo: { name: "wmlet", version: "0.1.0" },
     }),
     30_000,
-    "ACP initialize"
+    `${name} ACP initialize`
   );
 
-  // Create session
-  console.log(`[wmlet] creating claude session...`);
   const acpSession = await withTimeout(
-    connection.newSession({
-      cwd: WORKSPACE_DIR,
-      mcpServers: [],
-    }),
+    connection.newSession({ cwd: WORKSPACE_DIR, mcpServers: [] }),
     30_000,
-    "ACP newSession"
+    `${name} ACP newSession`
   );
 
-  console.log(`[wmlet] session ready: ${acpSession.sessionId}`);
+  console.log(`[wmlet] topic "${name}" ready, session: ${acpSession.sessionId}`);
 
-  const session: Session = {
-    id,
+  const topic: Topic = {
+    name,
     connection,
     process: proc,
     sessionId: acpSession.sessionId,
     clients: new Set(),
     log: [],
     busy: false,
+    createdAt: new Date().toISOString(),
   };
 
   proc.on("exit", (code) => {
-    console.log(`[wmlet] claude exited: ${code}`);
-    sessions.delete(id);
-    broadcastToSession(id, { type: "system", data: `agent exited (${code})` });
+    console.log(`[wmlet] topic "${name}" agent exited: ${code}`);
+    topics.delete(name);
+    broadcastToTopic(name, { type: "system", data: `agent exited (${code})` });
   });
 
-  sessions.set(id, session);
-  return session;
+  topics.set(name, topic);
+  return topic;
 }
 
-async function promptSession(sessionKey: string, text: string) {
-  const session = sessions.get(sessionKey);
-  if (!session) return;
-  if (session.busy) {
-    broadcastToSession(sessionKey, { type: "system", data: "agent is busy, wait..." });
+async function promptTopic(topicName: string, text: string) {
+  const topic = topics.get(topicName);
+  if (!topic) return;
+  if (topic.busy) {
+    broadcastToTopic(topicName, { type: "system", data: "agent is busy, wait..." });
     return;
   }
 
-  session.busy = true;
-  broadcastToSession(sessionKey, { type: "system", data: "thinking..." });
+  topic.busy = true;
+  broadcastToTopic(topicName, { type: "system", data: "thinking..." });
 
   try {
-    const result = await session.connection.prompt({
-      sessionId: session.sessionId,
+    await topic.connection.prompt({
+      sessionId: topic.sessionId,
       prompt: [{ type: "text", text }],
     });
-    console.log(`[wmlet] prompt done, turns: ${(result as any)?.turns?.length || "?"}`);
-    broadcastToSession(sessionKey, { type: "done" });
+    broadcastToTopic(topicName, { type: "done" });
   } catch (err: any) {
-    console.error(`[wmlet] prompt error:`, err);
-    broadcastToSession(sessionKey, { type: "error", data: err.message });
+    console.error(`[${topicName}] prompt error:`, err);
+    broadcastToTopic(topicName, { type: "error", data: err.message });
   } finally {
-    session.busy = false;
+    topic.busy = false;
   }
+}
+
+function deleteTopic(name: string): boolean {
+  const topic = topics.get(name);
+  if (!topic) return false;
+  topic.process.kill();
+  topics.delete(name);
+  for (const clientId of topic.clients) {
+    const ws = wsClients.get(clientId);
+    if (ws) ws.send(JSON.stringify({ type: "system", data: "topic archived" }));
+  }
+  return true;
 }
 
 // --- Server ---
 
 const server = Bun.serve({
   port: PORT,
-  fetch(req, server) {
+  async fetch(req, server) {
     const url = new URL(req.url);
 
+    // WebSocket: /acp/:topic
+    const acpMatch = url.pathname.match(/^\/acp\/([^/]+)$/);
+    if (acpMatch) {
+      const topicName = acpMatch[1];
+      const upgraded = server.upgrade(req, { data: { topicName } });
+      if (!upgraded) return new Response("upgrade failed", { status: 400 });
+      return undefined;
+    }
+    // Backward compat: /acp?session=X → /acp/X
     if (url.pathname === "/acp") {
-      const sessionId = url.searchParams.get("session") || "default";
-      const upgraded = server.upgrade(req, { data: { sessionId } });
+      const topicName = url.searchParams.get("session") || url.searchParams.get("topic") || "general";
+      const upgraded = server.upgrade(req, { data: { topicName } });
       if (!upgraded) return new Response("upgrade failed", { status: 400 });
       return undefined;
     }
 
+    // REST: topics
+    if (url.pathname === "/topics" && req.method === "GET") {
+      return Response.json(
+        [...topics.values()].map((t) => ({
+          name: t.name,
+          sessionId: t.sessionId,
+          clients: t.clients.size,
+          busy: t.busy,
+          logSize: t.log.length,
+          createdAt: t.createdAt,
+        }))
+      );
+    }
+
+    if (url.pathname === "/topics" && req.method === "POST") {
+      const body = await req.json() as { name: string };
+      if (!body.name) return Response.json({ error: "name required" }, { status: 400 });
+      if (topics.has(body.name)) return Response.json({ error: "already exists" }, { status: 409 });
+      try {
+        const topic = await createTopic(body.name);
+        return Response.json({
+          name: topic.name,
+          sessionId: topic.sessionId,
+          acp: `ws://localhost:${PORT}/acp/${topic.name}`,
+          createdAt: topic.createdAt,
+        }, { status: 201 });
+      } catch (err: any) {
+        return Response.json({ error: err.message }, { status: 500 });
+      }
+    }
+
+    const topicMatch = url.pathname.match(/^\/topics\/([^/]+)$/);
+    if (topicMatch && req.method === "GET") {
+      const topic = topics.get(topicMatch[1]);
+      if (!topic) return Response.json({ error: "not found" }, { status: 404 });
+      return Response.json({
+        name: topic.name,
+        sessionId: topic.sessionId,
+        clients: topic.clients.size,
+        busy: topic.busy,
+        logSize: topic.log.length,
+        acp: `ws://localhost:${PORT}/acp/${topic.name}`,
+        createdAt: topic.createdAt,
+      });
+    }
+
+    if (topicMatch && req.method === "DELETE") {
+      const ok = deleteTopic(topicMatch[1]);
+      if (!ok) return Response.json({ error: "not found" }, { status: 404 });
+      return Response.json({ name: topicMatch[1], status: "archived" });
+    }
+
+    // Health
     if (url.pathname === "/health") {
       return Response.json({
         status: "ok",
         hasApiKey: !!process.env.ANTHROPIC_API_KEY,
-        sessions: [...sessions.entries()].map(([k, s]) => ({
-          id: k,
-          sessionId: s.sessionId,
-          clients: s.clients.size,
-          busy: s.busy,
-          logSize: s.log.length,
-        })),
+        topics: [...topics.keys()],
       });
     }
 
-    return new Response("wmlet\n\nGET /health\nWS  /acp?session=<id>\n");
+    return Response.json({
+      service: "wmlet",
+      endpoints: [
+        "GET    /health           — health check",
+        "GET    /topics           — list topics",
+        "POST   /topics           — create topic",
+        "GET    /topics/:name     — get topic",
+        "DELETE /topics/:name     — archive topic",
+        "WS     /acp/:topic      — connect to topic",
+      ],
+    });
   },
 
   websocket: {
     async open(ws) {
       const clientId = crypto.randomUUID();
-      const sessionKey = (ws.data as any).sessionId;
+      const topicName = (ws.data as any).topicName;
       (ws as any)._clientId = clientId;
-      (ws as any)._sessionId = sessionKey;
+      (ws as any)._topicName = topicName;
       wsClients.set(clientId, ws);
 
-      console.log(`[wmlet] client ${clientId} connecting to session ${sessionKey}`);
+      console.log(`[wmlet] client ${clientId} joining topic "${topicName}"`);
 
-      let session = sessions.get(sessionKey);
-      if (!session) {
+      let topic = topics.get(topicName);
+      if (!topic) {
         try {
           ws.send(JSON.stringify({ type: "system", data: "starting agent..." }));
-          session = await createSession(sessionKey);
+          topic = await createTopic(topicName);
         } catch (err: any) {
-          console.error(`[wmlet] failed to create session:`, err);
+          console.error(`[wmlet] failed to create topic:`, err);
           ws.send(JSON.stringify({ type: "error", data: err.message }));
           ws.close();
           return;
         }
       }
-      session.clients.add(clientId);
+      topic.clients.add(clientId);
 
       ws.send(JSON.stringify({
         type: "connected",
-        session: sessionKey,
-        sessionId: session.sessionId,
+        topic: topicName,
+        sessionId: topic.sessionId,
       }));
     },
 
     message(ws, raw) {
-      const sessionKey = (ws as any)._sessionId;
+      const topicName = (ws as any)._topicName;
       const msg = JSON.parse(raw.toString());
 
       if (msg.type === "prompt") {
-        promptSession(sessionKey, msg.data);
+        promptTopic(topicName, msg.data);
       }
     },
 
     close(ws) {
       const clientId = (ws as any)._clientId;
-      const sessionKey = (ws as any)._sessionId;
+      const topicName = (ws as any)._topicName;
       wsClients.delete(clientId);
-      const session = sessions.get(sessionKey);
-      if (session) session.clients.delete(clientId);
-      console.log(`[wmlet] client ${clientId} disconnected`);
+      const topic = topics.get(topicName);
+      if (topic) topic.clients.delete(clientId);
+      console.log(`[wmlet] client ${clientId} left topic "${topicName}"`);
     },
   },
 });

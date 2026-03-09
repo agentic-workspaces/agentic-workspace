@@ -3,28 +3,37 @@
  * ws — CLI client for agentic workspace.
  *
  * Usage:
- *   ws list                     — list workspaces
- *   ws create <name>            — create workspace
- *   ws delete <name>            — delete workspace
- *   ws connect <name> [session] — connect to workspace ACP
- *   ws health                   — manager health
+ *   ws list                         — list workspaces
+ *   ws create <name>                — create workspace
+ *   ws delete <name>                — delete workspace
+ *   ws topics <name>                — list topics in workspace
+ *   ws connect <name> [topic]       — connect to topic (default: general)
+ *   ws health                       — manager health
  */
 
 const MANAGER = process.env.WS_MANAGER || "http://localhost:31337";
 
 const [cmd, ...args] = process.argv.slice(2);
 
-async function api(path: string, opts?: RequestInit) {
-  const res = await fetch(`${MANAGER}${path}`, opts);
+async function api(url: string, opts?: RequestInit) {
+  const res = await fetch(url, opts);
   return res.json();
 }
 
+async function managerApi(path: string, opts?: RequestInit) {
+  return api(`${MANAGER}${path}`, opts);
+}
+
+// Get workspace API base URL
+async function wsApi(name: string): Promise<string> {
+  const ws = await managerApi(`/workspaces/${name}`);
+  if (ws.error) { console.error("Error:", ws.error); process.exit(1); }
+  return ws.api;
+}
+
 async function list() {
-  const data = await api("/workspaces");
-  if (!data.length) {
-    console.log("No workspaces.");
-    return;
-  }
+  const data = await managerApi("/workspaces");
+  if (!data.length) { console.log("No workspaces."); return; }
   console.log("WORKSPACE\tSTATUS\tACP");
   for (const ws of data) {
     console.log(`${ws.name}\t${ws.status}\t${ws.acp}`);
@@ -33,7 +42,7 @@ async function list() {
 
 async function create(name: string) {
   if (!name) { console.error("Usage: ws create <name>"); process.exit(1); }
-  const data = await api("/workspaces", {
+  const data = await managerApi("/workspaces", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
@@ -45,24 +54,36 @@ async function create(name: string) {
 
 async function del(name: string) {
   if (!name) { console.error("Usage: ws delete <name>"); process.exit(1); }
-  const data = await api(`/workspaces/${name}`, { method: "DELETE" });
+  const data = await managerApi(`/workspaces/${name}`, { method: "DELETE" });
   if (data.error) { console.error("Error:", data.error); process.exit(1); }
   console.log(`Deleted: ${data.name}`);
 }
 
+async function listTopics(name: string) {
+  if (!name) { console.error("Usage: ws topics <workspace>"); process.exit(1); }
+  const base = await wsApi(name);
+  const data = await api(`${base}/topics`);
+  if (!data.length) { console.log("No topics. Connect to create one."); return; }
+  console.log("TOPIC\t\tCLIENTS\tBUSY\tCREATED");
+  for (const t of data) {
+    console.log(`${t.name}\t\t${t.clients}\t${t.busy}\t${t.createdAt}`);
+  }
+}
+
 async function health() {
-  const data = await api("/health");
+  const data = await managerApi("/health");
   console.log(JSON.stringify(data, null, 2));
 }
 
-async function connect(name: string, session = "default") {
-  if (!name) { console.error("Usage: ws connect <name> [session]"); process.exit(1); }
+async function connect(name: string, topic = "general") {
+  if (!name) { console.error("Usage: ws connect <name> [topic]"); process.exit(1); }
 
-  // Get workspace info
-  const ws = await api(`/workspaces/${name}`);
+  const ws = await managerApi(`/workspaces/${name}`);
   if (ws.error) { console.error("Error:", ws.error); process.exit(1); }
 
-  const acpUrl = ws.acp + `?session=${session}`;
+  // Build ACP URL: ws://host:port/acp/<topic>
+  const acpBase = ws.acp.replace(/\/acp$/, "");
+  const acpUrl = `${acpBase}/acp/${topic}`;
   console.log(`Connecting to ${acpUrl}...`);
 
   const socket = new WebSocket(acpUrl);
@@ -76,8 +97,8 @@ async function connect(name: string, session = "default") {
         break;
       case "connected":
         connected = true;
-        console.log(`\x1b[32mConnected to session ${msg.sessionId}\x1b[0m`);
-        console.log(`Type a message and press Enter. Ctrl+C to quit.\n`);
+        console.log(`\x1b[32mConnected to topic "${msg.topic}" (session ${msg.sessionId})\x1b[0m`);
+        console.log(`Type a message and press Enter. /quit to disconnect.\n`);
         promptInput();
         break;
       case "text":
@@ -104,31 +125,20 @@ async function connect(name: string, session = "default") {
     }
   };
 
-  socket.onerror = () => {
-    console.error("WebSocket error");
-    process.exit(1);
-  };
-
-  socket.onclose = () => {
-    console.log("\nDisconnected.");
-    process.exit(0);
-  };
+  socket.onerror = () => { console.error("WebSocket error"); process.exit(1); };
+  socket.onclose = () => { console.log("\nDisconnected."); process.exit(0); };
 
   function promptInput() {
-    process.stdout.write("\x1b[36m> \x1b[0m");
+    process.stdout.write(`\x1b[36m[${topic}]> \x1b[0m`);
   }
 
-  // Read stdin line by line
   const decoder = new TextDecoder();
   for await (const chunk of Bun.stdin.stream()) {
     const lines = decoder.decode(chunk).split("\n").filter(Boolean);
     for (const line of lines) {
       const text = line.trim();
       if (!text) continue;
-      if (text === "/quit" || text === "/exit") {
-        socket.close();
-        process.exit(0);
-      }
+      if (text === "/quit" || text === "/exit") { socket.close(); process.exit(0); }
       if (!connected) continue;
       socket.send(JSON.stringify({ type: "prompt", data: text }));
     }
@@ -149,6 +159,9 @@ switch (cmd) {
   case "rm":
     await del(args[0]);
     break;
+  case "topics":
+    await listTopics(args[0]);
+    break;
   case "connect":
   case "c":
     await connect(args[0], args[1]);
@@ -160,9 +173,10 @@ switch (cmd) {
     console.log(`ws — agentic workspace CLI
 
 Commands:
-  list                     List workspaces
-  create <name>            Create workspace
-  delete <name>            Delete workspace
-  connect <name> [session] Connect to workspace
-  health                   Manager health`);
+  list                       List workspaces
+  create <name>              Create workspace
+  delete <name>              Delete workspace
+  topics <name>              List topics in workspace
+  connect <name> [topic]     Connect to topic (default: general)
+  health                     Manager health`);
 }

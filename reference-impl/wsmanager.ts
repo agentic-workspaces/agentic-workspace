@@ -162,6 +162,7 @@ const server = Bun.serve({
         status: ws.status,
         containerId: ws.containerId,
         acp: `ws://${HOST}:${ws.port}/acp`,
+        api: `http://${HOST}:${ws.port}`,
         createdAt: ws.createdAt,
       });
     }
