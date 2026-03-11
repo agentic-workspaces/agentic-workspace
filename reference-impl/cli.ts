@@ -22,9 +22,77 @@
  */
 
 const MANAGER = process.env.WS_MANAGER || "http://localhost:31337";
-let clientId =
-  process.env.clientId ||
-  `cli-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+let cachedNamespace: string | null = null;
+
+type AuthState = {
+  subject: string;
+  displayName: string;
+  token: string;
+};
+
+function randomId(prefix: string): string {
+  return `${prefix}-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function base64UrlEncode(value: unknown): string {
+  return Buffer.from(JSON.stringify(value)).toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function decodeJWTPayload(token: string): Record<string, unknown> {
+  const [, payload = ""] = token.split(".");
+  if (!payload) return {};
+  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+}
+
+function mintUnsignedJWT(subject: string, displayName: string): string {
+  const now = Math.floor(Date.now() / 1000);
+  return `${base64UrlEncode({ alg: "none", typ: "JWT" })}.${base64UrlEncode({
+    iss: "workspace-demo",
+    sub: subject,
+    name: displayName,
+    iat: now,
+  })}.`;
+}
+
+function normalizeDisplayName(value: string, fallback: string): string {
+  return value.trim().replace(/\s+/g, " ").slice(0, 64) || fallback;
+}
+
+function loadAuthState(): AuthState {
+  const provided = (process.env.WS_JWT ?? "").trim();
+  if (provided) {
+    const claims = decodeJWTPayload(provided);
+    const subject = String(claims.sub ?? process.env.WS_SUBJECT ?? randomId("cli"));
+    const displayName = normalizeDisplayName(
+      String(claims.name ?? claims.preferred_username ?? claims.email ?? process.env.WS_NAME ?? subject),
+      subject,
+    );
+    return { subject, displayName, token: provided };
+  }
+
+  const subject = (process.env.WS_SUBJECT ?? "").trim() || randomId("cli");
+  const displayName = normalizeDisplayName(process.env.WS_NAME ?? "", subject);
+  return {
+    subject,
+    displayName,
+    token: mintUnsignedJWT(subject, displayName),
+  };
+}
+
+function setDisplayName(nextDisplayName: string) {
+  authState = {
+    subject: authState.subject,
+    displayName: normalizeDisplayName(nextDisplayName, authState.subject),
+    token: mintUnsignedJWT(authState.subject, normalizeDisplayName(nextDisplayName, authState.subject)),
+  };
+}
+
+let authState = loadAuthState();
 
 const [cmd, ...args] = process.argv.slice(2);
 
@@ -51,27 +119,32 @@ async function api(url: string, opts?: RequestInit) {
   return data;
 }
 
-async function managerApi(path: string, opts?: RequestInit) {
-  return api(`${MANAGER}${path}`, opts);
+function withAuth(opts: RequestInit = {}): RequestInit {
+  const headers = new Headers(opts.headers ?? {});
+  headers.set("Authorization", `Bearer ${authState.token}`);
+  return { ...opts, headers };
 }
 
-// Get workspace API base URL
-async function wsApi(name: string): Promise<string> {
-  const ws = await managerApi(`/workspaces/${name}`);
-  if (ws.error) { console.error("Error:", ws.error); process.exit(1); }
-  return ws.api;
+async function managerApi(path: string, opts?: RequestInit) {
+  return api(`${MANAGER}${path}`, withAuth(opts));
+}
+
+async function managerNamespace(): Promise<string> {
+  if (cachedNamespace) return cachedNamespace;
+  const health = await managerApi("/health");
+  cachedNamespace = typeof health.namespace === "string" && health.namespace
+    ? health.namespace
+    : "default";
+  return cachedNamespace;
+}
+
+async function workspaceBase(name: string): Promise<string> {
+  const namespace = await managerNamespace();
+  return `${MANAGER}/apis/v1/namespaces/${encodeURIComponent(namespace)}/workspaces/${encodeURIComponent(name)}`;
 }
 
 function requestHeaders() {
-  return { "X-Workspace-Client-ID": clientId };
-}
-
-function nextPromptIdFactory() {
-  let counter = 0;
-  return () => {
-    counter += 1;
-    return `p_${clientId}_${counter}`;
-  };
+  return { Authorization: `Bearer ${authState.token}` };
 }
 
 function printQueueSnapshot(snapshot: any) {
@@ -82,14 +155,14 @@ function printQueueSnapshot(snapshot: any) {
     return;
   }
   for (const entry of snapshot.entries) {
-    const owner = entry.submittedBy?.id || "unknown";
+    const owner = entry.submittedBy?.displayName || entry.submittedBy?.id || "unknown";
     console.log(`\x1b[90m[queue] #${entry.position} ${entry.promptId} ${entry.status} by ${owner}: ${entry.text}\x1b[0m`);
   }
 }
 
 async function queue(name: string, topic = "general") {
   if (!name) { console.error("Usage: ws queue <workspace> <topic>"); process.exit(1); }
-  const base = await wsApi(name);
+  const base = await workspaceBase(name);
   const data = await api(`${base}/topics/${encodeURIComponent(topic)}/queue`, {
     headers: requestHeaders(),
   });
@@ -99,7 +172,7 @@ async function queue(name: string, topic = "general") {
 
 async function clearQueue(name: string, topic = "general") {
   if (!name) { console.error("Usage: ws clear-queue <workspace> <topic>"); process.exit(1); }
-  const base = await wsApi(name);
+  const base = await workspaceBase(name);
   const data = await api(`${base}/topics/${encodeURIComponent(topic)}/queue:clear-mine`, {
     method: "POST",
     headers: requestHeaders(),
@@ -117,7 +190,7 @@ async function editQueue(name: string, topic = "general", promptId?: string, tex
     console.error("Usage: ws edit-queue <workspace> <topic> <promptId> <text...>");
     process.exit(1);
   }
-  const base = await wsApi(name);
+  const base = await workspaceBase(name);
   const data = await api(`${base}/topics/${encodeURIComponent(topic)}/queue/${encodeURIComponent(promptId)}`, {
     method: "PATCH",
     headers: {
@@ -135,7 +208,7 @@ async function moveQueue(name: string, topic = "general", promptId?: string, dir
     console.error("Usage: ws move-queue <workspace> <topic> <promptId> <up|down|top|bottom>");
     process.exit(1);
   }
-  const base = await wsApi(name);
+  const base = await workspaceBase(name);
   const data = await api(`${base}/topics/${encodeURIComponent(topic)}/queue/${encodeURIComponent(promptId)}/move`, {
     method: "POST",
     headers: {
@@ -153,7 +226,7 @@ async function inject(name: string, topic = "general", text?: string) {
     console.error("Usage: ws inject <workspace> <topic> <text...>");
     process.exit(1);
   }
-  const base = await wsApi(name);
+  const base = await workspaceBase(name);
   const data = await api(`${base}/topics/${encodeURIComponent(topic)}/inject`, {
     method: "POST",
     headers: {
@@ -171,7 +244,7 @@ async function interrupt(name: string, topic = "general", reason?: string) {
     console.error("Usage: ws interrupt <workspace> <topic> <reason...>");
     process.exit(1);
   }
-  const base = await wsApi(name);
+  const base = await workspaceBase(name);
   const data = await api(`${base}/topics/${encodeURIComponent(topic)}/interrupt`, {
     method: "POST",
     headers: {
@@ -185,42 +258,44 @@ async function interrupt(name: string, topic = "general", reason?: string) {
 }
 
 async function list() {
-  const data = await managerApi("/workspaces");
+  const namespace = await managerNamespace();
+  const data = await managerApi(`/apis/v1/namespaces/${encodeURIComponent(namespace)}/workspaces`);
   if (!data.length) { console.log("No workspaces."); return; }
-  console.log("WORKSPACE\tSTATUS\tACP");
+  console.log("WORKSPACE\tSTATUS");
   for (const ws of data) {
-    console.log(`${ws.name}\t${ws.status}\t${ws.acp}`);
+    console.log(`${ws.name}\t${ws.status}`);
   }
 }
 
 async function create(name: string, topicNames: string[]) {
   if (!name) { console.error("Usage: ws create <name> [topic1 topic2 ...]"); process.exit(1); }
+  const namespace = await managerNamespace();
   const body: any = { name };
-  if (topicNames.length > 0) body.topics = topicNames;
-  const data = await managerApi("/workspaces", {
+  if (topicNames.length > 0) body.topics = topicNames.map((topic) => ({ name: topic }));
+  const data = await managerApi(`/apis/v1/namespaces/${encodeURIComponent(namespace)}/workspaces`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (data.error) { console.error("Error:", data.error); process.exit(1); }
   console.log(`Created: ${data.name}`);
-  console.log(`ACP:     ${data.acp}`);
-  if (data.topics?.length) {
-    console.log(`Topics:  ${data.topics.join(", ")}`);
+  if (Array.isArray(data.topics) && data.topics.length > 0) {
+    console.log(`Topics:  ${data.topics.map((topic: any) => topic.name).join(", ")}`);
   }
 }
 
 async function del(name: string) {
   if (!name) { console.error("Usage: ws delete <name>"); process.exit(1); }
-  const data = await managerApi(`/workspaces/${name}`, { method: "DELETE" });
+  const base = await workspaceBase(name);
+  const data = await api(base, withAuth({ method: "DELETE" }));
   if (data.error) { console.error("Error:", data.error); process.exit(1); }
   console.log(`Deleted: ${data.name}`);
 }
 
 async function listTopics(name: string) {
   if (!name) { console.error("Usage: ws topics <workspace>"); process.exit(1); }
-  const base = await wsApi(name);
-  const data = await api(`${base}/topics`);
+  const base = await workspaceBase(name);
+  const data = await api(`${base}/topics`, withAuth());
   if (!data.length) { console.log("No topics. Connect to create one."); return; }
   console.log("TOPIC\t\tCLIENTS\tBUSY\tCREATED");
   for (const t of data) {
@@ -236,34 +311,38 @@ async function health() {
 async function connect(name: string, topic = "general") {
   if (!name) { console.error("Usage: ws connect <name> [topic]"); process.exit(1); }
 
-  const ws = await managerApi(`/workspaces/${name}`);
+  const namespace = await managerNamespace();
+  const apiBase = await workspaceBase(name);
+  const ws = await api(apiBase, withAuth());
   if (ws.error) { console.error("Error:", ws.error); process.exit(1); }
 
-  // Build ACP URL: ws://host:port/acp/<topic>
-  const acpBase = ws.acp.replace(/\/acp$/, "");
-  const apiBase = ws.api;
   let connected = false;
   let reconnecting = false;
-  const nextPromptId = nextPromptIdFactory();
-  const nextInjectId = nextPromptIdFactory();
   const promptStates = new Map<string, string>();
   const ownPrompts: string[] = [];
   const ownQueuedPromptIds = () => ownPrompts.filter((candidate) => promptStates.get(candidate) === "queued");
 
-  function buildAcpUrl() {
-    return `${acpBase}/acp/${topic}?client_id=${encodeURIComponent(clientId)}`;
+  function buildTopicURL() {
+    const scheme = MANAGER.startsWith("https://") ? "wss://" : "ws://";
+    const authority = MANAGER.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    return `${scheme}${authority}/apis/v1/namespaces/${encodeURIComponent(namespace)}/workspaces/${encodeURIComponent(name)}/topics/${encodeURIComponent(topic)}/events`;
   }
 
   function setupSocket(ws: WebSocket) {
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: "authenticate", token: authState.token }));
+    };
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data);
       switch (msg.type) {
+        case "authenticated":
+          break;
         case "system":
           console.log(`\x1b[90m[system] ${msg.data}\x1b[0m`);
           break;
         case "connected":
           connected = true;
-          console.log(`\x1b[32mConnected to topic "${msg.topic}" (session ${msg.sessionId}, ${msg.protocolVersion || "unknown"})\x1b[0m`);
+          console.log(`\x1b[32mConnected to topic "${msg.topic}" (${msg.protocolVersion || "unknown"})\x1b[0m`);
           console.log(`Type a message and press Enter. /help for commands, /quit to disconnect.\n`);
           promptInput();
           break;
@@ -271,6 +350,9 @@ async function connect(name: string, topic = "general") {
           printQueueSnapshot(msg);
           break;
         case "prompt_status":
+          if (msg.submittedBy?.id === authState.subject && msg.promptId && !ownPrompts.includes(msg.promptId)) {
+            ownPrompts.push(msg.promptId);
+          }
           promptStates.set(msg.promptId, msg.status);
           console.log(`\x1b[90m[prompt] ${msg.promptId} ${msg.status}${msg.position ? ` (#${msg.position})` : ""}${msg.data ? `: ${msg.data}` : ""}\x1b[0m`);
           break;
@@ -328,8 +410,8 @@ async function connect(name: string, topic = "general") {
     };
   }
 
-  console.log(`Connecting as ${clientId}...`);
-  let socket = new WebSocket(buildAcpUrl());
+  console.log(`Connecting as ${authState.displayName} (${authState.subject})...`);
+  let socket = new WebSocket(buildTopicURL());
   setupSocket(socket);
 
   function promptInput() {
@@ -430,15 +512,11 @@ async function connect(name: string, topic = "general") {
   }
 
   function sendPrompt(text: string, position?: number) {
-    const promptId = nextPromptId();
-    ownPrompts.push(promptId);
-    promptStates.set(promptId, "accepted");
-    socket.send(JSON.stringify({ type: "prompt", promptId, data: text, ...(position === undefined ? {} : { position }) }));
+    socket.send(JSON.stringify({ type: "prompt", data: text, ...(position === undefined ? {} : { position }) }));
   }
 
   function sendInject(text: string) {
-    const injectId = nextInjectId().replace(/^p_/, "inj_");
-    socket.send(JSON.stringify({ type: "inject", injectId, data: text }));
+    socket.send(JSON.stringify({ type: "inject", data: text }));
   }
 
   function sendInterrupt(reason: string) {
@@ -472,7 +550,7 @@ async function connect(name: string, topic = "general") {
 
 \x1b[1mOther\x1b[0m
   /name <name>          Change your display name (reconnects)
-  /whoami               Show your participant ID
+  /whoami               Show your authenticated subject
   /quit                 Disconnect
 
 \x1b[1mExamples\x1b[0m
@@ -550,7 +628,7 @@ async function connect(name: string, topic = "general") {
         continue;
       }
       if (text === "/whoami") {
-        console.log(`participant ${clientId}`);
+        console.log(`subject ${authState.subject} (${authState.displayName})`);
         promptInput();
         continue;
       }
@@ -561,12 +639,12 @@ async function connect(name: string, topic = "general") {
           promptInput();
           continue;
         }
-        clientId = newName;
-        console.log(`\x1b[90mReconnecting as ${clientId}...\x1b[0m`);
+        setDisplayName(newName);
+        console.log(`\x1b[90mReconnecting as ${authState.displayName} (${authState.subject})...\x1b[0m`);
         reconnecting = true;
         connected = false;
         socket.close();
-        socket = new WebSocket(buildAcpUrl());
+        socket = new WebSocket(buildTopicURL());
         setupSocket(socket);
         reconnecting = false;
         continue;

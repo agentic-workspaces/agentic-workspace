@@ -111,7 +111,7 @@ Messages from client:
 
 Messages from server:
 ```json
-{ "type": "connected", "topic": "debug", "sessionId": "..." }
+{ "type": "connected", "topic": "debug" }
 { "type": "text", "data": "response chunk" }
 { "type": "tool_call", "title": "Read", "status": "running" }
 { "type": "tool_update", "toolCallId": "...", "status": "completed" }

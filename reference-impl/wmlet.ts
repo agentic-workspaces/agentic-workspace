@@ -248,7 +248,6 @@ const server = Bun.serve({
       return Response.json(
         [...topics.values()].map((t) => ({
           name: t.name,
-          sessionId: t.sessionId,
           clients: t.clients.size,
           busy: t.busy,
           logSize: t.log.length,
@@ -265,7 +264,6 @@ const server = Bun.serve({
         const topic = await createTopic(body.name);
         return Response.json({
           name: topic.name,
-          sessionId: topic.sessionId,
           acp: `ws://localhost:${PORT}/acp/${topic.name}`,
           createdAt: topic.createdAt,
         }, { status: 201 });
@@ -280,7 +278,6 @@ const server = Bun.serve({
       if (!topic) return Response.json({ error: "not found" }, { status: 404 });
       return Response.json({
         name: topic.name,
-        sessionId: topic.sessionId,
         clients: topic.clients.size,
         busy: topic.busy,
         logSize: topic.log.length,
@@ -344,7 +341,6 @@ const server = Bun.serve({
       ws.send(JSON.stringify({
         type: "connected",
         topic: topicName,
-        sessionId: topic.sessionId,
       }));
     },
 
