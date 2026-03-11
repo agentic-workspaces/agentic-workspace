@@ -1,136 +1,165 @@
-# Agentic Workspace — Reference Implementation
+# Agentic Workspace Reference Implementation
 
-Minimal reference implementation of the Agentic Workspace protocol.
-Runs Claude inside Docker containers, exposes ACP over WebSocket.
+This directory contains a Bun-based reference implementation for the
+workspace/topic API in [RFC 0001](../rfcs/0001-workspace-topic-api-surface.md).
+
+It is split into:
+
+- `wsmanager.ts`
+  The public API server. It owns authentication, the canonical
+  `/apis/v1/namespaces/{namespace}/...` surface, and public WebSocket
+  endpoints.
+- `wmlet.ts`
+  The per-workspace runtime inside a container. It speaks an internal API to
+  `wsmanager` and uses ACP only as its private execution engine.
+- `cli.ts`
+  A small client for creating workspaces, managing queues, and connecting to
+  topic event streams.
+
+## Status
+
+The current Bun reference implementation now follows the run-centric public
+model:
+
+- one active run per topic
+- queued future runs
+- `topic_state` as authoritative current state
+- `run_updated` and `message` on the topic WebSocket
+- canonical manager routes under `/apis/v1/namespaces/{namespace}/...`
+
+Current limitations:
+
+- `inject` is exposed, but this runtime rejects it because the ACP runtime used
+  underneath does not currently provide a true mid-run append primitive.
+- managed tool CRUD is implemented as manager-side state only; it is not yet
+  wired into runtime tool execution.
+- the file API is implemented and proxied through the manager, but it is still
+  a lightweight reference profile, not a hardened storage service.
 
 ## Architecture
 
-```
-┌──────────────┐    REST API     ┌──────────────────────────────┐
-│  CLI (cli.ts)│───────────────→ │  wsmanager (wsmanager.ts)    │
-│              │                 │  :31337                       │
-│  ws create   │                 │  - POST/GET/DELETE /workspaces│
-│  ws list     │                 │  - reads token from keychain  │
-│  ws topics   │                 │  - docker run per workspace   │
-│  ws connect  │                 │  - pre-creates topics         │
-└──────┬───────┘                 └──────────┬───────────────────┘
-       │                                    │ docker run
-       │ WebSocket                          ▼
-       │                         ┌──────────────────────────┐
-       └────────────────────────→│  wmlet container         │
-                                 │  :52001 (per workspace)  │
-                                 │                          │
-                                 │  Topics:                 │
-                                 │  ┌─ general ──→ claude  │
-                                 │  ├─ debug    ──→ claude  │
-                                 │  └─ refactor ──→ claude  │
-                                 │                          │
-                                 │  Each topic = separate   │
-                                 │  claude-agent-acp process│
-                                 │  with own ACP session    │
-                                 │                          │
-                                 │  /workspace/ (files+git) │
-                                 └──────────────────────────┘
+```text
+CLI / Browser
+    |
+    |  HTTP + WebSocket
+    v
+wsmanager.ts
+    |
+    |  internal HTTP + internal WebSocket
+    v
+wmlet.ts (one per workspace container)
+    |
+    |  ACP over stdio
+    v
+claude-agent-acp
 ```
 
-**Agents** live inside topics — each topic runs a separate `claude-agent-acp`
-process with its own conversation context, sharing workspace resources.
-
-**Humans** connect to the workspace and can participate in any topic.
-
-**wsmanager** — runs on the host, manages workspace lifecycle via Docker.
-Reads Claude OAuth token from macOS keychain and injects it into containers.
-
-**wmlet** — runs inside each container. Manages topics, spawns agent processes,
-translates between ACP (JSON-RPC over stdio) and WebSocket.
-
-**cli** — command-line client to create workspaces, manage topics, connect.
+The public contract is owned by `wsmanager.ts`. `wmlet.ts` is an internal
+runtime, not a second public API surface.
 
 ## Quick Start
 
 ```bash
-# 1. Build the workspace container image
+# Build the runtime image
 docker build -t agrp-wmlet .
 
-# 2. Start the workspace manager
+# Start the public manager
 bun run wsmanager.ts
 
-# 3. Create a workspace with topics
-bun run ws create my-task general debug-timeout refactor-api
+# Create a workspace
+bun run ws create my-workspace general debug-timeout
 
-# 4. Connect to a topic
-bun run ws connect my-task debug-timeout
+# Connect to a topic
+bun run ws connect my-workspace debug-timeout
 ```
 
-## CLI Commands
+## CLI
 
-```
-bun run ws list                          List all workspaces
-bun run ws create <name> [topics...]     Create workspace (optionally with topics)
-bun run ws delete <name>                 Delete workspace (stops container)
-bun run ws topics <name>                 List topics in workspace
-bun run ws connect <name> [topic]        Connect to topic (default: general)
-bun run ws health                        Show manager status
-```
-
-Inside a connected topic, type a message and press Enter.
-Type `/quit` to disconnect.
-
-## API
-
-### Workspace Manager — wsmanager (REST, :31337)
-
-```
-POST   /workspaces          Create workspace  { "name": "x", "topics": ["a","b"] }
-GET    /workspaces          List workspaces
-GET    /workspaces/:name    Get workspace details + ACP endpoint
-DELETE /workspaces/:name    Delete workspace
-GET    /health              Manager health
+```text
+bun run ws list
+bun run ws create <name> [topics...]
+bun run ws delete <name>
+bun run ws topics <name>
+bun run ws queue <name> <topic>
+bun run ws edit-queue <name> <topic> <runId> <text...>
+bun run ws move-queue <name> <topic> <runId> <up|down|top|bottom>
+bun run ws clear-queue <name> <topic>
+bun run ws inject <name> <topic> <text...>
+bun run ws interrupt <name> <topic> <reason...>
+bun run ws connect <name> [topic]
+bun run ws health
 ```
 
-### Workspace — wmlet (REST + WebSocket, per container)
+Inside `connect`, plain text submits a run. `/next` queues at the front.
 
-Topics REST:
-```
-GET    /topics              List topics
-POST   /topics              Create topic  { "name": "debug" }
-GET    /topics/:name        Get topic details
-DELETE /topics/:name        Archive topic
-GET    /health              Workspace health
+## Public Surface
+
+The manager exposes the canonical route family:
+
+```text
+/apis/v1/namespaces/{namespace}/workspaces
+/apis/v1/namespaces/{namespace}/workspaces/{workspace}
+/apis/v1/namespaces/{namespace}/workspaces/{workspace}/topics
+/apis/v1/namespaces/{namespace}/workspaces/{workspace}/topics/{topic}
+/apis/v1/namespaces/{namespace}/workspaces/{workspace}/topics/{topic}/events
+/apis/v1/namespaces/{namespace}/events
 ```
 
-Topic ACP (WebSocket):
-```
-WS     /acp/:topic          Connect to topic
+Supported REST areas in this reference profile:
+
+- workspaces
+- topics
+- queue mutation
+- interrupt
+- managed tool CRUD
+- provisional file API
+
+Topic WebSockets use the RFC 0001 message model:
+
+- client:
+  - `authenticate`
+  - `prompt`
+  - `inject`
+  - `interrupt`
+- server:
+  - `authenticated`
+  - `connected`
+  - `topic_state`
+  - `run_updated`
+  - `message`
+  - `tool_call`
+  - `tool_update`
+  - `inject_status`
+  - `interrupt_status`
+  - `error`
+
+## Authentication
+
+HTTP requests use:
+
+```text
+Authorization: Bearer <jwt>
 ```
 
-Messages from client:
+Topic and namespace WebSockets authenticate with:
+
 ```json
-{ "type": "prompt", "data": "your message here" }
+{ "type": "authenticate", "token": "<jwt>" }
 ```
 
-Messages from server:
-```json
-{ "type": "connected", "topic": "debug" }
-{ "type": "text", "data": "response chunk" }
-{ "type": "tool_call", "title": "Read", "status": "running" }
-{ "type": "tool_update", "toolCallId": "...", "status": "completed" }
-{ "type": "done" }
-{ "type": "error", "data": "error message" }
-{ "type": "system", "data": "starting agent..." }
+For the demo profile, unsigned JWTs (`alg: none`) are accepted so local runs
+do not require key management.
+
+## Sanity Checks
+
+Static check:
+
+```bash
+bunx tsc --noEmit
 ```
 
-## Files
+Basic runtime smoke against a running manager:
 
-| File | Runs | Purpose |
-|------|------|---------|
-| `wsmanager.ts` | Host | REST API, manages Docker containers |
-| `wmlet.ts` | Container | Topic manager, ACP bridge per topic |
-| `cli.ts` | Host | CLI client |
-| `Dockerfile` | — | Container image: bun + node + claude-agent-acp |
-
-## Requirements
-
-- [Bun](https://bun.sh) runtime
-- Docker
-- Claude subscription (token read from macOS keychain)
+```bash
+bun run test.ts
+```

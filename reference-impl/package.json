@@ -7,7 +7,8 @@
     "manager": "bun run wsmanager.ts",
     "dev:wmlet": "bun --watch run wmlet.ts",
     "dev:manager": "bun --watch run wsmanager.ts",
-    "ws": "bun run cli.ts"
+    "ws": "bun run cli.ts",
+    "test": "bun run test.ts"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.15.0",

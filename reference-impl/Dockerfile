@@ -16,8 +16,8 @@ RUN bun install --frozen-lockfile
 RUN node --version && bun --version && git --version && \
     ls node_modules/.bin/claude-agent-acp
 
-# Copy wmlet
-COPY wmlet.ts ./
+# Copy wmlet runtime sources
+COPY wmlet.ts auth.ts protocol.ts ./
 
 # Workspace
 RUN mkdir -p /workspace && git -C /workspace init

@@ -21,6 +21,8 @@
  *   ws health                       — manager health
  */
 
+import { decodeJWTPayload, mintUnsignedJWT, normalizeDisplayName } from "./auth.ts";
+
 const MANAGER = process.env.WS_MANAGER || "http://localhost:31337";
 let cachedNamespace: string | null = null;
 
@@ -32,35 +34,6 @@ type AuthState = {
 
 function randomId(prefix: string): string {
   return `${prefix}-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function base64UrlEncode(value: unknown): string {
-  return Buffer.from(JSON.stringify(value)).toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-function decodeJWTPayload(token: string): Record<string, unknown> {
-  const [, payload = ""] = token.split(".");
-  if (!payload) return {};
-  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
-  return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
-}
-
-function mintUnsignedJWT(subject: string, displayName: string): string {
-  const now = Math.floor(Date.now() / 1000);
-  return `${base64UrlEncode({ alg: "none", typ: "JWT" })}.${base64UrlEncode({
-    iss: "workspace-demo",
-    sub: subject,
-    name: displayName,
-    iat: now,
-  })}.`;
-}
-
-function normalizeDisplayName(value: string, fallback: string): string {
-  return value.trim().replace(/\s+/g, " ").slice(0, 64) || fallback;
 }
 
 function loadAuthState(): AuthState {
@@ -135,7 +108,7 @@ async function managerNamespace(): Promise<string> {
   cachedNamespace = typeof health.namespace === "string" && health.namespace
     ? health.namespace
     : "default";
-  return cachedNamespace;
+  return cachedNamespace ?? "default";
 }
 
 async function workspaceBase(name: string): Promise<string> {
@@ -482,7 +455,7 @@ async function connect(name: string, topic = "general") {
     let runId = id;
     if (runId === "last") {
       const pending = ownQueuedRunIds();
-      runId = pending[pending.length - 1];
+      runId = pending[pending.length - 1] ?? "";
       if (!runId) {
         console.error(`\x1b[31m[error] no queued run to cancel\x1b[0m`);
         return;
@@ -712,36 +685,36 @@ switch (cmd) {
     await list();
     break;
   case "create":
-    await create(args[0], args.slice(1));
+    await create(args[0] ?? "", args.slice(1));
     break;
   case "delete":
   case "rm":
-    await del(args[0]);
+    await del(args[0] ?? "");
     break;
   case "topics":
-    await listTopics(args[0]);
+    await listTopics(args[0] ?? "");
     break;
   case "queue":
-    await queue(args[0], args[1]);
+    await queue(args[0] ?? "", args[1]);
     break;
   case "edit-queue":
-    await editQueue(args[0], args[1], args[2], args.slice(3).join(" ").trim());
+    await editQueue(args[0] ?? "", args[1], args[2], args.slice(3).join(" ").trim());
     break;
   case "move-queue":
-    await moveQueue(args[0], args[1], args[2], args[3]);
+    await moveQueue(args[0] ?? "", args[1], args[2], args[3]);
     break;
   case "clear-queue":
-    await clearQueue(args[0], args[1]);
+    await clearQueue(args[0] ?? "", args[1]);
     break;
   case "inject":
-    await inject(args[0], args[1], args.slice(2).join(" ").trim());
+    await inject(args[0] ?? "", args[1], args.slice(2).join(" ").trim());
     break;
   case "interrupt":
-    await interrupt(args[0], args[1], args.slice(2).join(" ").trim());
+    await interrupt(args[0] ?? "", args[1], args.slice(2).join(" ").trim());
     break;
   case "connect":
   case "c":
-    await connect(args[0], args[1]);
+    await connect(args[0] ?? "", args[1]);
     break;
   case "health":
     await health();
