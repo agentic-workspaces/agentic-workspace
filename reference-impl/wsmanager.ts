@@ -18,12 +18,24 @@ import {
   type WorkspaceDetail,
   type WorkspaceSummary,
 } from "./protocol.ts";
+import { stat } from "node:fs/promises";
 
 const PORT = parseInt(process.env.PORT || "31337", 10);
 const IMAGE = process.env.WMLET_IMAGE || "agrp-wmlet";
 const NAMESPACE = process.env.WS_NAMESPACE || "default";
 const INTERNAL_HOST = "127.0.0.1";
 const PORT_RANGE_START = 52001;
+const CONTAINER_HOME = "/root";
+const CLAUDE_ENV_KEYS = [
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_CUSTOM_HEADERS",
+  "ANTHROPIC_MODEL",
+  "CLAUDE_CODE_EXECUTABLE",
+  "CLAUDE_CONFIG_DIR",
+  "MAX_THINKING_TOKENS",
+] as const;
 
 type PublicSocket = any;
 type TopicSocketData = {
@@ -90,6 +102,44 @@ async function getClaudeToken(): Promise<string | null> {
   }
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function dockerClaudeArgs(): Promise<string[]> {
+  const args: string[] = [];
+
+  for (const key of CLAUDE_ENV_KEYS) {
+    const value = process.env[key];
+    if (value) {
+      args.push("-e", `${key}=${value}`);
+    }
+  }
+
+  const home = process.env.HOME;
+  if (!home) return args;
+
+  const mountPairs: Array<[string, string]> = [
+    [`${home}/.claude`, `${CONTAINER_HOME}/.claude`],
+    [`${home}/.anthropic`, `${CONTAINER_HOME}/.anthropic`],
+    [`${home}/.claude.json`, `${CONTAINER_HOME}/.claude.json`],
+    [`${home}/.config/Claude`, `${CONTAINER_HOME}/.config/Claude`],
+  ];
+
+  for (const [hostPath, containerPath] of mountPairs) {
+    if (await pathExists(hostPath)) {
+      args.push("-v", `${hostPath}:${containerPath}:ro`);
+    }
+  }
+
+  return args;
+}
+
 async function dockerRun(name: string, port: number): Promise<string> {
   const token = await getClaudeToken();
   const cmd = [
@@ -98,6 +148,7 @@ async function dockerRun(name: string, port: number): Promise<string> {
     "-p", `${port}:31337`,
     "-e", `WORKSPACE_NAME=${name}`,
   ];
+  cmd.push(...await dockerClaudeArgs());
   if (token) {
     cmd.push("-e", `ANTHROPIC_API_KEY=${token}`);
   }

@@ -207,6 +207,31 @@ function toolUpdateData(value: unknown): string | undefined {
   }
 }
 
+function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    const parts: string[] = [];
+    if (typeof value.message === "string" && value.message) {
+      parts.push(value.message);
+    }
+    if (typeof value.code === "string" || typeof value.code === "number") {
+      parts.push(`code=${String(value.code)}`);
+    }
+    if (value.data !== undefined) {
+      parts.push(`data=${toolUpdateData(value.data) ?? String(value.data)}`);
+    }
+    if (parts.length > 0) return parts.join(" ");
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error);
+}
+
 async function createTopic(name: string): Promise<Topic> {
   const command = `${BIN_DIR}/claude-agent-acp`;
   const proc = spawn(command, [], {
@@ -378,7 +403,7 @@ async function executeRun(topic: Topic, run: RunRecord) {
     const state = runStateFromStopReason(response.stopReason);
     await finishRun(topic, run, state, run.reason ?? (state === "failed" ? response.stopReason : undefined), run.interruptedBy);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = describeError(error);
     const state: RunState = run.interruptedBy ? "cancelled" : "failed";
     await finishRun(topic, run, state, run.reason ?? message, run.interruptedBy);
   }

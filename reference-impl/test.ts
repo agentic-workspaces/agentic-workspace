@@ -72,7 +72,8 @@ async function main() {
   let authenticated = false;
   let connected = false;
   let sawRunning = false;
-  let sawTerminal = false;
+  let sawAssistant = false;
+  let terminalState: string | null = null;
 
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: "authenticate", token: TOKEN }));
@@ -94,24 +95,29 @@ async function main() {
       return;
     }
     if (message.type === "run_updated" && ["completed", "cancelled", "failed"].includes(message.state)) {
-      sawTerminal = true;
+      terminalState = message.state;
       return;
     }
     if (message.type === "message" && message.role === "assistant") {
+      sawAssistant = true;
       console.log("[assistant]", message.text);
     }
   };
 
   const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline && (!authenticated || !connected || !sawRunning || !sawTerminal)) {
+  while (Date.now() < deadline && (!authenticated || !connected || !sawRunning || !terminalState || !sawAssistant)) {
     await Bun.sleep(250);
   }
 
   ws.close();
   await cleanup(namespace);
 
-  if (!authenticated || !connected || !sawRunning || !sawTerminal) {
-    throw new Error("reference impl smoke did not observe full run lifecycle");
+  if (!authenticated || !connected || !sawRunning || terminalState !== "completed" || !sawAssistant) {
+    throw new Error(
+      `reference impl smoke did not observe successful run lifecycle `
+      + `(authenticated=${authenticated} connected=${connected} `
+      + `sawRunning=${sawRunning} terminalState=${terminalState} sawAssistant=${sawAssistant})`,
+    );
   }
 
   console.log("[test] ok");

@@ -73,6 +73,27 @@ bun run ws create my-workspace general debug-timeout
 bun run ws connect my-workspace debug-timeout
 ```
 
+## Model Runtime And Authentication
+
+This reference runtime uses the real `claude-agent-acp` adapter inside each
+workspace container. It is not a fake model.
+
+The easiest way to make it work is to launch `wsmanager.ts` from a shell where
+your Claude credentials are already available. The manager will:
+
+- pass through common Claude/Anthropic env vars such as `ANTHROPIC_API_KEY`
+  and `ANTHROPIC_AUTH_TOKEN`
+- mount local Claude auth/config files into the workspace container when it
+  finds them, including `~/.claude`, `~/.anthropic`, `~/.claude.json`, and
+  `~/.config/Claude`
+
+If you want explicit configuration, export a key before starting the manager:
+
+```bash
+export ANTHROPIC_API_KEY=sk-...
+bun run wsmanager.ts
+```
+
 ## CLI
 
 ```text
