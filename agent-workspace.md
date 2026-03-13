@@ -22,6 +22,24 @@ Today's agent experience is single-player. One human, one agent, one session —
 
 This protocol defines that environment.
 
+### Relationship to ACP
+
+The [Agent Client Protocol](https://github.com/agentclientprotocol/agent-client-protocol) (ACP) defines how a single client talks to a single agent — synchronous JSON-RPC over stdio, one prompt turn at a time. It is inherently single-player: the agent is a subprocess of the client, there is no concept of identity, no queue, no way for a second participant to join or steer the agent mid-turn.
+
+Agentic Workspace is a multiplayer layer built on top of ACP:
+
+|  | ACP | Agentic Workspace |
+|---|---|---|
+| Participants | 1 client | N humans + M agents |
+| Prompt model | synchronous RPC turn | async run with queue |
+| Identity | none | JWT-based actors |
+| Approval | "can I?" to the one user | workflow with designated approvers |
+| Cancel | client cancels itself | interrupt with attribution |
+| Mid-turn input | none | inject |
+| Transport | JSON-RPC over stdio | WebSocket with fanout |
+
+Inside the workspace runtime, each **run** maps to one ACP `session/prompt` call. The workspace protocol adds queuing, ownership, inject/interrupt, and multiplayer fanout around that single-player core. ACP remains the internal interface between the workspace runtime and the agent process — the workspace protocol is the external interface that participants use.
+
 ---
 
 ## 2. A Day with Workspaces
