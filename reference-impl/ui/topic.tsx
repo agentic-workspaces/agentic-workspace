@@ -749,7 +749,9 @@ function ChatScript({ wsName, topicName, token, namespace }: {
           // Refresh file sidebar after run completes
           var filesEl = document.getElementById("acc-files");
           if (filesEl) {
-            htmx.ajax("GET", API + "/workspaces/" + encodeURIComponent(WS_NAME) + "/resources/?path=", "#acc-files");
+            var resBase = API + "/workspaces/" + encodeURIComponent(WS_NAME) + "/resources";
+            var uiB = "/ui/" + encodeURIComponent(WS_NAME);
+            htmx.ajax("GET", resBase + "/?path=&base=" + encodeURIComponent(resBase) + "&ui=" + encodeURIComponent(uiB), "#acc-files");
           }
         }
         if (msg.topicState) updateState(msg.topicState);
