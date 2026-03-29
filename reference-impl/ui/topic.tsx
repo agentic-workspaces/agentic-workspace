@@ -55,12 +55,15 @@ function LeftPanel({ wsName, topicName, topics, agents, members, resourcesUrl, n
               const topicUrl = `/ui/${encodeURIComponent(wsName)}/${encodeURIComponent(tp.name)}`;
               return (
                 <a href={topicUrl}
-                  class={`flex items-center gap-2 px-3 py-1.5 text-sm ${active ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700 hover:bg-gray-50"}`}
+                  class={`group flex items-center gap-2 px-3 py-1.5 text-sm ${active ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700 hover:bg-gray-50"}`}
                   onclick={active ? `event.preventDefault(); var fc=document.getElementById('file-content'); if(fc){fc.className='hidden'; fc.innerHTML='';} var tp=document.getElementById('topic-pane'); if(tp) tp.className='flex-1 flex flex-col overflow-hidden'; history.pushState(null,'','${topicUrl}')` : undefined}>
                   <span class="truncate flex-1">{tp.name}</span>
                   {tp.activeRun
                     ? <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
                     : null}
+                  <button onclick={`event.preventDefault(); event.stopPropagation(); if(confirm('Delete topic "${tp.name}"?')) fetch('/apis/v1/namespaces/${namespace}/workspaces/${encodeURIComponent(wsName)}/topics/${encodeURIComponent(tp.name)}',{method:'DELETE',credentials:'include'}).then(function(){location.href='/ui/${encodeURIComponent(wsName)}'})`}
+                    class="hidden group-hover:inline text-gray-300 hover:text-red-500 text-xs cursor-pointer"
+                    title="Delete topic"><i class="fa-solid fa-trash text-[9px]"></i></button>
                 </a>
               );
             })}

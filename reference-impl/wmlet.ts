@@ -922,7 +922,10 @@ const server = Bun.serve<SocketData>({
       const topic = topics.get(topicName);
       if (!topic) return jsonError("not found", 404);
       topic.process.kill();
+      for (const ws of topic.sockets) ws.close();
       topics.delete(topicName);
+      // Remove persisted history
+      await rm(`${WORKSPACE_DIR}/.topics/${topicName}`, { recursive: true, force: true }).catch(() => {});
       return Response.json({ name: topicName, status: "archived" });
     }
 
