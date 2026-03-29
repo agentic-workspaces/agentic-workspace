@@ -1167,7 +1167,7 @@ const server = Bun.serve<SocketData>({
     const resourceMatch = url.pathname.match(/^\/resources(?:\/(.*))?$/);
 
     if (resourceMatch) {
-      const rawPath = resourceMatch[1] ?? "";
+      const rawPath = decodeURIComponent(resourceMatch[1] ?? "");
       const rp = relativeWorkspacePath(rawPath || null) || "";
       const tab = url.searchParams.get("tab") || undefined;
       const accept = req.headers.get("accept") || "";
