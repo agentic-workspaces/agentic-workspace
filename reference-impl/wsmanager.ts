@@ -650,7 +650,7 @@ const server = Bun.serve<SocketData>({
         const users = await usersResp.json() as Array<{ id: string; username: string; firstName?: string; lastName?: string; email?: string }>;
 
         return Response.json(users.map(u => ({
-          id: u.id,
+          id: u.username,
           username: u.username,
           displayName: [u.firstName, u.lastName].filter(Boolean).join(" ") || u.username,
           email: u.email || "",
@@ -673,7 +673,9 @@ const server = Bun.serve<SocketData>({
     if (uiMatch) {
       const { actor } = actorFromAny(req);
       if (!actor && OAUTH_ENABLED) return Response.redirect("/oauth/login", 302);
-      const list = [...workspaces.values()].map(ws => ({
+      const list = [...workspaces.values()]
+        .filter(ws => !ws.members?.length || !actor || ws.members.some(m => m.id === actor.id))
+        .map(ws => ({
         id: ws.id, namespace: ws.namespace, name: ws.name,
         status: ws.status, createdAt: ws.createdAt, containerId: ws.containerId,
         owner: ws.owner ? { id: ws.owner.id, displayName: ws.owner.displayName } : undefined,
